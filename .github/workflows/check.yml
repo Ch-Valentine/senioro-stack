@@ -1,0 +1,30 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Install tools
+        run: |
+          if ! command -v jq >/dev/null || ! command -v shellcheck >/dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq shellcheck
+          fi
+          npm install -g @anthropic-ai/claude-code@2.1.287
+          claude --version
+      # Deterministic gates G1-G5 (G2 runs the guard fixtures). No API key; smoke.sh is manual.
+      - name: tests/check.sh
+        run: bash tests/check.sh
+      - name: tests/tl-guard.test.sh
+        run: bash tests/tl-guard.test.sh

@@ -1,0 +1,8 @@
+{
+  "name": "senioro-stack",
+  "owner": { "name": "Valentyn Cherevatyi" },
+  "metadata": { "description": "Tech Lead mode for Claude Code: delegating orchestrator, five capped-report seats, and review/decision skills." },
+  "plugins": [
+    { "name": "senioro", "source": "./plugins/senioro", "description": "Tech Lead mode (/senioro:orchestrate) with a strict-mode guard hook, five seat agents, and review and decision skills." }
+  ]
+}

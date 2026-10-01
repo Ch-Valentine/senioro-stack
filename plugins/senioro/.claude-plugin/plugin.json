@@ -1,0 +1,9 @@
+{
+  "name": "senioro",
+  "description": "Tech Lead mode (/senioro:orchestrate) with a strict-mode guard hook, five seat agents, and review and decision skills.",
+  "author": { "name": "Valentyn Cherevatyi" },
+  "homepage": "https://github.com/Ch-Valentine/senioro-stack",
+  "repository": "https://github.com/Ch-Valentine/senioro-stack",
+  "license": "MIT",
+  "keywords": ["tech-lead", "orchestration", "subagents", "code-review"]
+}
