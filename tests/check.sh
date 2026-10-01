@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Gate functions are called indirectly as "gate_$g".
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 # Deterministic gates G1-G5 (SPEC section 7).
 # Usage: tests/check.sh [validate|guard|grep|lint|layout ...] [-- <path> ...]
 # No gate named = all gates. Paths after -- replace the grep gate's default scan set.
