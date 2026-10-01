@@ -16,10 +16,12 @@ while [ "$#" -gt 0 ]; do
   GATES+=("$1"); shift
 done
 [ "${#GATES[@]}" -gt 0 ] || GATES=(validate guard grep lint layout)
-[ "${#PATHS[@]}" -gt 0 ] || PATHS=(.claude-plugin plugins README.md LICENSE .gitignore tests)
+[ "${#PATHS[@]}" -gt 0 ] || PATHS=(.claude-plugin plugins README.md LICENSE THIRD_PARTY_NOTICES.md .gitignore tests)
 
 PLUGIN=plugins/senioro
-SKILLS="decide-step-by-step orchestrate resolve-plan-issues resolve-review-findings review-implementation review-spec-plan"
+SKILLS="bro decide-step-by-step orchestrate resolve-plan-issues resolve-review-findings review-implementation review-spec-plan technical-writing typescript-best-practices unslop"
+# Model-invocable skills (SPEC #13, #14): disable-model-invocation must be absent; every other skill has it true.
+AUTO_SKILLS="technical-writing typescript-best-practices unslop"
 AGENTS="architect implementer investigator runner verifier"
 # Agent model:effort as promised by the README components table (SPEC section 1: unchanged per seat).
 AGENT_ME="architect:opus:xhigh implementer:opus:high investigator:opus:high runner:haiku:low verifier:sonnet:high"
@@ -70,7 +72,7 @@ gate_lint() {
   out=$(shellcheck "$PLUGIN/scripts/tl-guard.sh" tests/*.sh 2>&1) || { echo "$out"; return 1; }
 }
 
-# G5: tree shape, names, frontmatter flags, modes, manifests, LICENSE.
+# G5: tree shape, names, frontmatter flags, modes, manifests, LICENSE, third-party notices.
 gate_layout() {
   local bad="" got n f e
   fm() { sed -n "s/^$1: *//p" "$2" 2>/dev/null | head -n1; }
@@ -81,7 +83,10 @@ gate_layout() {
   for n in $SKILLS; do
     f="$PLUGIN/skills/$n/SKILL.md"
     [ "$(sed -n 's/^name: *//p' "$f" 2>/dev/null | head -n1)" = "$n" ] || bad+="$f name != $n; "
-    [ "$(fm disable-model-invocation "$f")" = true ] || bad+="$f disable-model-invocation != true; "
+    case " $AUTO_SKILLS " in
+      *" $n "*) [ -z "$(fm disable-model-invocation "$f")" ] || bad+="$f disable-model-invocation is set; " ;;
+      *) [ "$(fm disable-model-invocation "$f")" = true ] || bad+="$f disable-model-invocation != true; " ;;
+    esac
   done
   for e in $AGENT_ME; do
     f="$PLUGIN/agents/${e%%:*}.md"
@@ -99,6 +104,7 @@ gate_layout() {
   jq -e '.name=="senioro"' "$PLUGIN/.claude-plugin/plugin.json" >/dev/null || bad+="plugin.json name; "
   [ "$(head -n1 LICENSE)" = "MIT License" ] || bad+="LICENSE line 1; "
   { [ -L "$PLUGIN/LICENSE" ] && [ "$(readlink "$PLUGIN/LICENSE")" = ../../LICENSE ] && [ "$(head -n1 "$PLUGIN/LICENSE")" = "MIT License" ]; } || bad+="$PLUGIN/LICENSE is not a resolving symlink to ../../LICENSE; "
+  { [ -L "$PLUGIN/THIRD_PARTY_NOTICES.md" ] && [ "$(readlink "$PLUGIN/THIRD_PARTY_NOTICES.md")" = ../../THIRD_PARTY_NOTICES.md ] && [ "$(head -n1 "$PLUGIN/THIRD_PARTY_NOTICES.md")" = "# Third-party notices" ]; } || bad+="$PLUGIN/THIRD_PARTY_NOTICES.md is not a resolving symlink to ../../THIRD_PARTY_NOTICES.md; "
   [ -z "$bad" ] || { echo "$bad"; return 1; }
 }
 

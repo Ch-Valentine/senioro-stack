@@ -32,7 +32,7 @@ Updates are manual. Auto-update is off by default for third-party marketplaces, 
 
 ## Components
 
-Skills (none is model-invocable; you invoke each one yourself):
+Skills (three are model-invocable: Claude loads `technical-writing`, `typescript-best-practices` and `unslop` on its own when they apply; you invoke every other one yourself):
 
 | Skill | Purpose | Model-invocable |
 |---|---|---|
@@ -42,6 +42,10 @@ Skills (none is model-invocable; you invoke each one yourself):
 | `/senioro:review-spec-plan` | Review a design spec or plan, with per-dimension ratings and a verdict. | No |
 | `/senioro:resolve-plan-issues` | Resolve a plan's open issues: auto-fix trivial ones, walk through complex ones. | No |
 | `/senioro:decide-step-by-step` | Resolve a plan's open decisions one by one, with a recommendation each. | No |
+| `/senioro:bro` | Restate the last message in plain language, with no jargon. | No |
+| `/senioro:unslop` | Cut AI tells from any writing. | Yes |
+| `/senioro:technical-writing` | Layered technical-writing standard for docs, RFCs, READMEs, PR descriptions and commit messages. | Yes |
+| `/senioro:typescript-best-practices` | TypeScript type-safety rules, loaded when working with `.ts` and `.tsx` files. | Yes |
 
 Agents (spawned as `senioro:<name>`):
 
@@ -98,3 +102,5 @@ rm -rf ~/.cache/senioro-tl   # optional: deletes the TL run dirs and markers
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The `bro`, `unslop`, `technical-writing` and `typescript-best-practices` skills are ported from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
