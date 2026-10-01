@@ -22,7 +22,7 @@ PLUGIN=plugins/senioro
 SKILLS="decide-step-by-step orchestrate resolve-plan-issues resolve-review-findings review-implementation review-spec-plan"
 AGENTS="architect implementer investigator runner verifier"
 # Agent model:effort as promised by the README components table (SPEC section 1: unchanged per seat).
-AGENT_ME="architect:opus:high implementer:opus:high investigator:opus:high runner:haiku:low verifier:sonnet:high"
+AGENT_ME="architect:opus:xhigh implementer:opus:high investigator:opus:high runner:haiku:low verifier:sonnet:high"
 # shellcheck disable=SC2016
 LINE14='          command: "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/tl-guard.sh\""'
 

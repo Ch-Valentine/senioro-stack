@@ -50,7 +50,7 @@ Agents (spawned as `senioro:<name>`):
 | `senioro:runner` | Run a command and digest it, locate files, run tests. No edits. | haiku | low |
 | `senioro:verifier` | Rule on claims, findings or self-reports, refute-by-default. No edits. | sonnet | high |
 | `senioro:investigator` | Research and root cause; facts separated from inferences. No edits. | opus | high |
-| `senioro:architect` | Design: options, a recommendation, a split into gateable units. | opus | high |
+| `senioro:architect` | Design: options, a recommendation, a split into gateable units. | opus | xhigh |
 | `senioro:implementer` | Make exactly the briefed change and run the narrowest checks. | opus | high |
 
 The TL passes a `model` on every spawn, which overrides the agent's default model. `resolve-plan-issues` hard-codes sonnet and opus for its own subagents.
