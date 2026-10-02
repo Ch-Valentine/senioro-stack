@@ -1,0 +1,2 @@
+# The root SPEC*.md rule matches this template under core.ignorecase; keep it tracked.
+!/references/spec-template.md

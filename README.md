@@ -37,9 +37,15 @@ Skills (three are model-invocable: Claude loads `technical-writing`, `typescript
 | Skill | Purpose | Model-invocable |
 |---|---|---|
 | `/senioro:orchestrate` | Tech Lead mode: delegate to the seats, decide, ask the user; arms the strict-mode guard. | No |
+| `/senioro:frame-goal` | Frame a goal: facts through subagents, open decisions one question at a time, a falsifiable done predicate, and the route (micro, spec, or PRD then spec). | No |
+| `/senioro:write-prd` | Write a product requirements document (problem, users, user stories, success measure) from a framed goal. | No |
+| `/senioro:write-spec` | Write the technical spec: decisions, cited facts, root cause, design with alternatives, test seams, gateable units; then a hygiene pass. | No |
+| `/senioro:review-spec-plan` | Review a spec or plan through four fixed lenses (architect, spec quality, root cause, blast radius), each run by its own seat in a Workflow, then filter the findings for noise; one verdict with Must Fix, Should Fix and Consider. | No |
+| `/senioro:preflight` | Check that a long run can start: seats and services, auth, tools, a baseline gate run; READY or NOT READY, read-only. | No |
+| `/senioro:status` | Print a plain-language digest: done (how verified), in flight, left, next, open decisions. | No |
+| `/senioro:check-before-pr` | Run the project's own static-analysis and AI-review tools, fix real findings at the root, re-run until clean, then ask before any PR. | No |
 | `/senioro:review-implementation` | Deep review of a feature's implementation, with a structured verdict. | No |
 | `/senioro:resolve-review-findings` | Challenge a code review's findings, confirm the real ones, apply and verify the fixes. | No |
-| `/senioro:review-spec-plan` | Review a design spec or plan, with per-dimension ratings and a verdict. | No |
 | `/senioro:resolve-plan-issues` | Resolve a plan's open issues: auto-fix trivial ones, walk through complex ones. | No |
 | `/senioro:decide-step-by-step` | Resolve a plan's open decisions one by one, with a recommendation each. | No |
 | `/senioro:bro` | Restate the last message in plain language, with no jargon. | No |
@@ -59,10 +65,23 @@ Agents (spawned as `senioro:<name>`):
 
 The TL passes a `model` on every spawn, which overrides the agent's default model. `resolve-plan-issues` hard-codes sonnet and opus for its own subagents.
 
+## Workflow
+
+```
+goal ─► frame-goal ─┬─ micro ───────────────────────────────────────────► build
+                    ├─ spec ─────────────► write-spec ─► review ─► decide ─► preflight ─► build ─► check-before-pr ─► [user: PR?]
+                    └─ PRD ─► write-prd ─►      ▲          │ (≤ 3 rounds; never re-review an unchanged spec)
+                                                └─ revise ◄┘
+status: any time, any stage
+```
+
+- By hand: type each `/senioro:<stage>` command in a plain session; each prints a "Next:" line. Decide with `/senioro:decide-step-by-step <spec> <report>` or `/senioro:resolve-plan-issues <spec> <report>`.
+- In TL mode: `/senioro:orchestrate <goal>` drives every stage through seats, and the review through its Workflow script.
+
 ## Prerequisites
 
 - Claude Code (tested 2.1.286).
-- `bash` and `jq`. Without jq the guard fails open.
+- `bash` and `jq`. Without jq the tl-guard fails open, and the pr-guard asks with a "could not be verified" warning.
 - Access to the opus, sonnet and haiku models.
 - The Workflow tool, for pipelines.
 
@@ -79,6 +98,7 @@ The TL passes a `model` on every spawn, which overrides the agent's default mode
 - `/effort` changes are saved as that model's default.
 - Seats never see memory. Point a seat at a memory file in its brief if it matters.
 - The tl-guard is a guardrail that keeps the TL disciplined, not a security boundary: it allows any Bash command whose text contains an allowed path. It matches only the command's first word (after one leading `cd`) against a fixed list of file readers, so absolute paths such as `/bin/cat` and chained `cd`s are not caught.
+- The pr-guard hook runs in every session, not only in TL mode. On a PR create or merge command (`gh pr create|merge`, `glab mr create|merge`, `az repos pr create`, `tea pulls create`, or a forge MCP create/merge tool) it denies until `/senioro:check-before-pr` has passed on the exact content (a git tree fingerprint under `~/.cache/senioro-tl/prepr/`), then asks for your approval. When it cannot check (no jq or git, not a git repo) it asks with a "could not be verified" warning. To skip the loop, tell Claude so explicitly; it records an override, and you still approve. It is a guardrail, not a security boundary: `gh api`, curl and the web UI are not caught.
 
 ## Platform
 
@@ -103,4 +123,4 @@ rm -rf ~/.cache/senioro-tl   # optional: deletes the TL run dirs and markers
 
 MIT. See [LICENSE](LICENSE).
 
-The `bro`, `unslop`, `technical-writing` and `typescript-best-practices` skills are ported from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The `bro`, `unslop`, `technical-writing` and `typescript-best-practices` skills are ported from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan (MIT). The workflow-stage skills (`frame-goal`, `write-prd`, `write-spec`, `review-spec-plan`, `preflight`, `status`, `check-before-pr`) adapt material from pstack and from [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

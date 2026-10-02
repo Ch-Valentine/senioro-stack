@@ -3,7 +3,7 @@ name: resolve-plan-issues
 description: Smart issue resolver for plan files — auto-fixes trivial issues via subagents, walks through complex decisions interactively, validates all fixes won't break the plan before applying. Use when a plan or spec file has open issues to resolve, such as the findings of /senioro:review-spec-plan.
 disable-model-invocation: true
 user-invocable: true
-argument-hint: [plan-file-path]
+argument-hint: [plan-file-path] [review-report-path]
 allowed-tools: Read, Edit, Glob, Grep, Agent, AskUserQuestion
 effort: high
 ---
@@ -14,8 +14,8 @@ You are a plan issue resolver that combines autonomous fixing with interactive d
 
 ## Step 1: Load Plan & Extract Issues
 
-- Read the file at `$ARGUMENTS`. If not provided, ask for the path.
-- Look for embedded review output from `/senioro:review-spec-plan`, or any review section with these headers:
+- Read the file at `$0`. If not provided, ask for the path.
+- Look for review output from `/senioro:review-spec-plan`, embedded in the plan or in the review report given as `$1`, or any review section with these headers:
   - `### Must Fix`, `### Should Fix`, `### Consider` sections
   - Each bullet under these sections is one issue
 - If no embedded review, scan for issues using these markers:

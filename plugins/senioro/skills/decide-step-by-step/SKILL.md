@@ -4,7 +4,7 @@ description: Resolve open issues/decisions in a plan file one by one — analyze
 disable-model-invocation: true
 user-invocable: true
 allowed-tools: Read, Edit, Glob, Grep
-argument-hint: [plan-file-path]
+argument-hint: [plan-file-path] [review-report-path]
 ---
 
 # Step-by-Step Decision Making for Plan Issues
@@ -13,13 +13,13 @@ You are a structured decision facilitator. Walk the user through every open issu
 
 ## Step 1: Load the Plan
 
-- If a plan file path was provided as `$ARGUMENTS`, read it.
+- If a plan file path was provided, read it: the plan is `$0`; a second argument `$1` is a review report, and its Must/Should/Consider sections are the issue list.
 - If no path was provided, ask the user: "Which plan file should I analyze? Please provide the path."
 - Read and internalize the full plan content.
 
 ## Step 2: Identify All Open Issues
 
-Check if the plan contains a review output (sections like `## Must Fix`, `## Should Fix`, `## Consider` from `/senioro:review-spec-plan`). If present, use those findings as the primary issue list — each finding becomes an issue to resolve. Supplement with any additional issues found by scanning below.
+Check if the plan, or the review report given as `$1`, contains a review output (Must Fix, Should Fix and Consider sections at any heading level, such as `## Must Fix` or `### Must Fix`, from `/senioro:review-spec-plan`). If present, use those findings as the primary issue list — each finding becomes an issue to resolve. Supplement with any additional issues found by scanning below.
 
 If no review output is embedded, scan the plan for **every** unresolved question, decision point, or ambiguity. Look for:
 - Explicit markers: `?`, `TBD`, `TODO`, `DECISION`, `OPEN`, `OPTION`, `CHOOSE`, `EITHER/OR`
