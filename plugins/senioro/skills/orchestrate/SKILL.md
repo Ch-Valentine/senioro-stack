@@ -35,7 +35,7 @@ Precedence: a repo's own build protocol (a build-orchestration skill, a phases R
 ## Progress lives in your context
 
 - No ledger, no plan file, no working copy of any artifact.
-- Confirm each decision in one line: `Noted: #N = B — why`. At a unit or phase close, print a board of ≤ 8 lines: done (and how it was verified), in flight, next, open decisions.
+- Confirm each decision in one line: `Noted: #N = B — why`. At a unit or phase close, print a board of ≤ 8 lines: done (how verified), in flight, left, next, open decisions.
 - Durable state is written by seats into the real artifacts: git, the one spec or plan (its Decisions table or checkboxes), memory for cross-session facts.
 - After a compaction, a runner rebuilds status from git, the artifact, and the `R/reports/` listing; a fresh session starts from git and the artifact.
 - Reasoning degrades past ~100–150K tokens: at a phase close, suggest `/compact`, or a fresh session once the handoff is in the artifacts.
@@ -74,10 +74,19 @@ RETURN: the seat's template (≤ 15 lines; architect ≤ 20)
 ## Change, review, decide
 
 - **Micro change** (≤ 2 files, < 50 lines, nothing sensitive): implementer → one verifier, blind to the implementer's reasoning.
-- **Review**: one reviewer seat (investigator, or architect for designs) applies the rubric — the relevant rubric, read by path — `${CLAUDE_PLUGIN_ROOT}/skills/review-implementation/SKILL.md` (code) or `${CLAUDE_PLUGIN_ROOT}/skills/review-spec-plan/SKILL.md` (spec or plan) — and writes a findings roster with ids. One sonnet verifier rules on the whole roster; a second, blind opus verifier on the reversed roster runs only when the first refutes a must_fix or the roster is security-sensitive. A must_fix drops only if both refute; a split goes to an investigator (opus) to adjudicate. At most 3 review rounds; never re-review an unchanged artifact.
+- **Code review**: one reviewer seat (investigator, or architect for designs) applies the rubric, read by path — `${CLAUDE_PLUGIN_ROOT}/skills/review-implementation/SKILL.md` — and writes a findings roster with ids. One sonnet verifier rules on the whole roster; a second, blind opus verifier on the reversed roster runs only when the first refutes a must_fix or the roster is security-sensitive. A must_fix drops only if both refute; a split goes to an investigator (opus) to adjudicate. At most 3 review rounds; never re-review an unchanged artifact.
+- **Spec or plan review**: launch `${CLAUDE_PLUGIN_ROOT}/skills/review-spec-plan/review.workflow.js` by `scriptPath` with `{target, R, dir: "${CLAUDE_PLUGIN_ROOT}/skills/review-spec-plan", round, prior, context}` (`prior` = the previous round's report path, round 2+); decide from its returned roster. At most 3 rounds; never re-review an unchanged spec.
 - **Decisions by proxy** (spec, plan, or skill decisions with the user): work from roster lines only; ask one question at a time (below); then ONE implementer applies every decision to the single canonical file (including its Decisions table) and one verifier checks the diff. In TL mode never run `senioro:decide-step-by-step`, `senioro:resolve-plan-issues`, or `senioro:resolve-review-findings` inline — they load the artifact into your context; this loop replaces them.
 - **Design**: the architect writes the design at the deliverable's final path and returns ≤ 20 lines; a blind critic (verifier sonnet, or investigator opus when stakes are high) challenges it before implementation.
-- **Pipelines** (≥ 3 seats with no user decision in between; multi-unit builds): a Workflow launched by `scriptPath`, never an inline `script`. The script is copied from the repo or authored by an implementer into `R/`; you never read it. `args` is a real JSON object. Confirm first with ONE question (units, seats × models, agent count, the gate). Death or limits mid-run → `TaskStop`, then `resumeFromRunId`. A repo with phase machinery → invoke its build-orchestration skill, if one is installed.
+- **Pipelines** (≥ 3 seats with no user decision in between; multi-unit builds): run preflight first (you check seat spawning and the Workflow tool; a runner applies `${CLAUDE_PLUGIN_ROOT}/skills/preflight/SKILL.md` for the rest); a NOT READY item is a user question. Then a Workflow launched by `scriptPath`, never an inline `script`. The script is copied from the repo or authored by an implementer into `R/`; you never read it. `args` is a real JSON object. Confirm first with ONE question (units, seats × models, agent count, the gate). Death or limits mid-run → `TaskStop`, then `resumeFromRunId`. A repo with phase machinery → invoke its build-orchestration skill, if one is installed.
+- **Stages** (files under `${CLAUDE_PLUGIN_ROOT}/skills/`; you never load a stage skill). A seat applies the file by path in seat mode: every step except talking to the user; user decisions come back as OPEN DECISIONS lines (recommended first) that you ask one at a time, and each spawn or verification it needs as a NEEDS line you run.
+  - Goal (frame; route micro / spec / PRD + spec) → `frame-goal/SKILL.md` → architect, opus; you keep the frame in `R/context-<n>.md`.
+  - PRD (route PRD only) → `write-prd/SKILL.md` → architect, opus.
+  - Spec → `write-spec/SKILL.md` → architect, opus.
+  - Review → `review-spec-plan/review.workflow.js` → the Workflow (Spec or plan review above).
+  - Before a long run → `preflight/SKILL.md` → runner, haiku (Pipelines above).
+  - Status, any time → `status/SKILL.md` → you, from context; runner, haiku after a compaction.
+  - Before any PR question → `check-before-pr/SKILL.md` → implementer, opus; then verifier, sonnet (Verify and close).
 
 ## Ask the user
 
@@ -89,7 +98,7 @@ RETURN: the seat's template (≤ 15 lines; architect ≤ 20)
 
 - No self-report ships: every DONE gets a verifier pass on its specific claims, and after each implementer you check `git diff --stat` yourself — a channel the seat cannot author. A `file:line` claim with no read or command behind it is unverified.
 - Gates: short commands yourself, capped (`… 2>&1 | tail -n 30`); longer ones via a runner. A red gate goes back to the implementer with the failing names; an unclear cause goes to an investigator — never to your hands.
-- Close a unit with the board; stage task-owned files only; commit, push, or open a PR only when the user asks. Unverified stays labelled unverified; red stays red.
+- Close a unit with the board; stage task-owned files only. Before any PR question, run the pre-PR loop (an implementer applies `${CLAUDE_PLUGIN_ROOT}/skills/check-before-pr/SKILL.md`; a verifier re-runs its tools and records the pass; pr-guard denies a PR without it). Commit, push, or open a PR only when the user asks. Unverified stays labelled unverified; red stays red.
 
 ## Rules
 
@@ -108,5 +117,5 @@ RETURN: the seat's template (≤ 15 lines; architect ≤ 20)
 
 - `scripts/tl-guard.sh` (plugin root) — the strict-mode guard: fail-open; allows subagents (`agent_id`), `~/.cache/senioro-tl/`, memory dirs, the scratchpad.
 - The plugin's agents `senioro:{runner,verifier,investigator,architect,implementer}` (`agents/`) — seats with pinned model, effort, and report templates.
-- The rubrics `senioro:review-implementation` and `senioro:review-spec-plan` (seats read them by path, see Review above).
+- The code-review rubric `senioro:review-implementation` and the stage skills `senioro:{frame-goal,write-prd,write-spec,review-spec-plan,preflight,status,check-before-pr}` (seats apply them by path, see Code review and Stages above).
 - `references/evidence.md` — why each rule exists (research 2026-09-16 and 2026-09-29). For maintainers; never load it at runtime.

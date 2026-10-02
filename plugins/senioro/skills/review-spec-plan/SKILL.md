@@ -1,151 +1,84 @@
 ---
 name: review-spec-plan
-description: Review a design spec or plan for conflicts, gaps, mistakes, compactness, completeness, code hygiene, and logic presentation. Produces a structured review with per-dimension ratings and an overall verdict. Use when a design spec or plan should be reviewed before it is built or resolved.
+description: "Reviews a spec or plan through four fixed lenses, each run by its own reviewer seat (architect, spec quality, root cause versus dirty fix, blast radius), then filters the merged findings for noise and returns one verdict with Must Fix, Should Fix and Consider findings. Use when a spec or plan should be reviewed before it is built or its issues are resolved."
 disable-model-invocation: true
 user-invocable: true
-argument-hint: [plan-file-path]
-allowed-tools: Read, Glob, Grep
+argument-hint: "[spec-or-plan-path] [previous-review-report]"
+allowed-tools: Workflow, Agent, Read, Bash
 effort: high
 ---
 
 # Spec/Plan Review
 
-You are a spec reviewer. Evaluate a design spec or plan as a **communication document** — not code. A good plan gives an implementer enough context to code it in one shot without ambiguity.
+Review a spec or plan through four fixed lenses, each run by its own reviewer seat, then filter the merged findings with lead judgment and return one verdict. The workflow `${CLAUDE_SKILL_DIR}/review.workflow.js` is the only copy of the lenses, seats, models and schemas; this file only launches it.
 
-## Step 1: Load
+| Lens | What it checks |
+|---|---|
+| A architect | Design red flags, the deletion test, real seams, genuine alternatives, subtraction, reader load, gateable units, cost |
+| Q spec quality | The seven dimensions (conflicts, gaps, mistakes, compactness, completeness, code hygiene, logic presentation) and the spec hygiene rules |
+| R root cause | Symptom versus root, bolted on versus integrated, the premise behind failed fixes, repro and seam for bug specs |
+| B blast radius | What breaks beyond the named files, and the one fact the change is safe because of, proven as far as is cheap |
 
-- Read the file at `$0`. If not provided, ask for the path.
-- If `$0` is a directory, list `.md` files and ask which to review.
-- If the document references companion files (e.g., `rationale.md`, `examples.md`), read those too — treat all linked files as one logical document.
-- If the plan references codebase paths or patterns, spot-check they exist with Grep/Glob. Don't do a full codebase audit.
+A lead-judgment filter then dedupes the findings and puts each one in a bucket: act on, consider, noted or dismissed. A dismissed must_fix gets a blind second opinion.
 
-## Step 2: Analyze Seven Dimensions
+## Step 1: Target
 
-Evaluate internally against each dimension. Collect specific findings with quotes or section references.
+- The target is the file at `$0`, as an absolute path. Without one, ask for the path.
+- If `$0` is a directory, list its `.md` files and ask which one to review.
 
-### 1. Conflicts
+## Step 2: Run dir
 
-Contradictions between parts of the plan.
+- `R` = `$HOME/.cache/senioro-tl/runs/${CLAUDE_SESSION_ID}` (absolute). Run `mkdir -p "$R/reports"`.
+- Reports live only there: never in the repo, never inside the target.
 
-- Section A says X, section B implies not-X
-- Naming inconsistencies (same concept, different names — or reverse)
-- Rules that overlap without stated precedence
-- Examples that violate the spec's own rules
-- Sequencing issues (step 3 depends on step 5's output)
+## Step 3: Round
 
-### 2. Gaps
+Each report starts with three header lines: `Target: <absolute path>`, `SHA256: <hash>`, `Round: <n>`.
 
-Missing information an implementer would need.
+- `sha` = the first field of `shasum -a 256 "<target>"`.
+- The previous report is `$1` if given. Otherwise it is the newest `$R/reports/review-<n>.md` whose header has the line `Target: <target>` exactly (`grep -lxF`, then the newest by `ls -t`).
+- With a previous report:
+  - if its `SHA256:` equals `sha`, stop and say the target is unchanged since that round: there is nothing new to review;
+  - otherwise `round` = its `Round:` + 1, and `prior` = its absolute path.
+- Without one: `round` = 1 and no `prior`.
+- If `round` would be 4 or more, stop and say so: at most 3 review rounds. Resolve the open findings by decision instead.
 
-- Undefined terms or concepts
-- Edge cases acknowledged but not addressed
-- Error/failure modes not described
-- Integration points mentioned but not specified (API contracts, event shapes, data flow)
-- Missing "what happens when" for non-happy paths
-- No scope boundary or "when NOT to use" section
+## Step 4: Launch
 
-### 3. Mistakes
-
-Factual errors, wrong assumptions, incorrect references.
-
-- References to files, functions, APIs that don't exist (verify with Grep/Glob)
-- Wrong assumptions about existing code behavior
-- Incorrect technical claims
-- Stale references to renamed/removed things
-
-### 4. Compactness
-
-Right level of detail — not a long story, not a telegram.
-
-- **Too verbose:** Repeated points, hedging prose, narrative where lists work, inline rationale that should be separated
-- **Too terse:** Decisions without rationale, hand-waving ("handle errors appropriately"), one-liners where nuance is needed
-- **Calibration:** Rules should be 1-2 sentences. If a rule needs more, it needs an example, not more prose. Decision logic should be tables/flowcharts, never paragraphs.
-
-### 5. Completeness
-
-Does the plan have all critical structural sections?
-
-- Problem statement and why it matters
-- Scope boundaries (in/out)
-- Data model or state shape when relevant
-- Key constraints (performance, compatibility, security)
-- Migration/rollout strategy if changing existing behavior
-- Testing strategy or acceptance criteria
-
-### 6. Code Hygiene
-
-Plans must NOT contain implementation code. Named "Code Hygiene" because it checks whether code should be *absent*, not whether existing examples are good.
-
-- **Acceptable:** Pseudo-code for algorithm flow, type/interface sketches (~5 lines) defining contracts, file structure templates
-- **Not acceptable:** Compilable/runnable code, full function bodies with imports, framework boilerplate, CSS blocks
-- **The test:** If it implements behavior (not just defines a contract), it's too much code
-
-### 7. Logic Presentation
-
-Does it use appropriate methods to explain complex logic?
-
-- Decision trees or condition tables for branching logic
-- State diagrams (text-based) for stateful behavior
-- Sequence descriptions for multi-step processes
-- Flowcharts (mermaid, ascii) for workflows
-- Pseudo-code for algorithms
-- **Red flag:** Complex branching described only in prose — if you re-read to follow the branches, it needs a diagram
-
-## Step 3: Present Findings
-
-Lead with verdict, then dimension table, then findings grouped by severity.
-
-### Output Format
+Launch the Workflow tool with `scriptPath` = `${CLAUDE_SKILL_DIR}/review.workflow.js` and `args` as a JSON object:
 
 ```
-## Verdict: [READY | REVISE | RETHINK]
-
-| Dimension          | Rating   |
-|--------------------|----------|
-| Conflicts          | ...      |
-| Gaps               | ...      |
-| Mistakes           | ...      |
-| Compactness        | ...      |
-| Completeness       | ...      |
-| Code Hygiene       | ...      |
-| Logic Presentation | ...      |
-
-### Must Fix
-- [DIMENSION] Section "X" — problem — evidence — suggested fix
-
-### Should Fix
-- [DIMENSION] Section "X" — problem — evidence — suggested fix
-
-### Consider
-- [DIMENSION] Section "X" — problem — evidence — suggested fix
-
-### Strengths
-- 2-3 things the spec does well (not just absence of problems)
+{ "target": "<absolute target>", "R": "<R>", "dir": "${CLAUDE_SKILL_DIR}", "round": <n>,
+  "prior": "<previous report, round 2+ only>", "sha": "<sha>", "context": "<decisions context file, only if the user named one>" }
 ```
 
-### Rating Scale
+Omit `prior` and `context` when there are none. The workflow runs the four lenses in parallel, then the filter, then the second opinion when needed. It returns `{verdict, report, lenses, items, noted, dismissed, contested}`.
 
-Per dimension:
-- **Ready** — implementable as-is, no issues or only cosmetic nitpicks
-- **Revise** — issues exist but fixable without rethinking the approach
-- **Rethink** — fundamental issue, needs discussion before rewriting
+## Step 5: Present
 
-Overall verdict:
-- **READY** — all dimensions Ready
-- **REVISE** — at least one Revise, no Rethink
-- **RETHINK** — at least one Rethink
+- Print the report file at the returned `report` path: it is the deliverable. It keeps the `### Must Fix`, `### Should Fix` and `### Consider` headings, so the decision commands find the findings.
+- Then one line: the returned verdict, and the `contested` ids if any (a dismissed must_fix the second opinion confirmed; treat it as open).
+- A verdict tagged `(incomplete: …)` means a lens or the filter died: say which, and that a re-run is needed before the review can be trusted. It is never READY.
+- If `report` is null, print the returned `items` instead.
 
-Severity mapping: Rethink findings → Must Fix, Revise findings → Should Fix, cosmetic → Consider.
+## Step 6: Next
+
+End with a "Next:" line naming the decision step with both paths:
+
+- `/senioro:decide-step-by-step <target> <report>` to settle the findings one at a time, or `/senioro:resolve-plan-issues <target> <report>` to resolve them in one pass;
+- after the target is revised, `/senioro:review-spec-plan <target>` runs the next round (at most 3).
+
+## Without the Workflow tool
+
+If the Workflow tool is unavailable, run the review in this session instead:
+
+1. Apply each lens file in `${CLAUDE_SKILL_DIR}/references/` (`lens-architect.md`, `lens-spec-quality.md` with `${CLAUDE_SKILL_DIR}/../write-spec/references/hygiene.md`, `lens-root-cause.md`, `lens-blast-radius.md`) to the target, one pass each.
+2. Apply `${CLAUDE_SKILL_DIR}/references/lead-judgment.md` to the merged findings, and write the report to `$R/reports/review-<round>.md` with the same header.
+3. Label the report "single-session review (lenses not independent)", then continue with Step 5.
 
 ## Rules
 
-1. **Read-only.** Never modify the plan file.
-2. **Be specific.** Every finding must reference a concrete section, line, or quote. No vague "could be improved."
-3. **Verify claims.** If the plan references codebase paths/patterns, check they exist. Report discrepancies as Mistakes.
-4. **Suggest fixes.** Every finding includes a concrete suggested resolution — draft wording for text issues, restructuring description for structural issues.
-5. **No implementation.** Don't suggest implementation code. If logic presentation needs improvement, describe *what kind* of diagram would help — don't write it.
-6. **Rate honestly.** Ready means "an implementer can start coding from this section with confidence."
-7. **No findings = Ready.** If a dimension has zero issues, rate it Ready. One line: "No issues found."
-8. **Proportional output.** The review should never be longer than the spec it reviews. Each finding: 2-3 sentences max. Clean specs get short reviews. For specs under 30 lines with no Must Fix or Should Fix findings, use a compact format: verdict line, dimension table, and Strengths only — omit empty severity sections.
-9. **Full report, not interactive.** Present all findings at once. The user can invoke a step-by-step decision skill (e.g., `/senioro:decide-step-by-step`) afterward to resolve issues one by one.
-10. **Skill definitions (conditional).** Only if the document has YAML frontmatter with skill fields (`name`, `description`, `disable-model-invocation`, etc.): additionally verify frontmatter fields are consistent with the body content and that only supported frontmatter attributes are used.
+1. **Read-only on the target.** Never modify the reviewed file, and never write review text into it or anywhere in the repo.
+2. **Proportional output.** The report is never longer than the target; each finding is one line.
+3. **At most 3 rounds,** and never re-review an unchanged target (Step 3).
+4. **Full report, not interactive.** Present the whole report at once; decisions come after, one at a time, through the decision commands.
