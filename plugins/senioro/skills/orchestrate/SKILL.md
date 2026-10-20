@@ -8,7 +8,7 @@ allowed-tools: Agent, Workflow, AskUserQuestion, SendMessage, TaskStop, Skill, B
 effort: high
 hooks:
   PreToolUse:
-    - matcher: "Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob|Bash"
+    - matcher: "Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob|Bash|EnterWorktree"
       hooks:
         - type: command
           command: "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/tl-guard.sh\""

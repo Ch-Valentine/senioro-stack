@@ -7,6 +7,7 @@
 #   - no marker file for this session                      -> TL mode not armed, allowed
 #   - Read/Edit/Write/MultiEdit/NotebookEdit/Grep/Glob on TL paths -> allowed
 #     (~/.cache/senioro-tl/ — run dirs and markers —, memory dirs, the session scratchpad, MEMORY.md)
+#   - EnterWorktree                                        -> denied (seats make worktrees; the TL stays at the repo root)
 #   - Bash whose leading command reads or copies files (cat/sed/head/tail/less/more/bat/grep/rg/awk/ugrep/cp/mv/tee)
 #     and does not target a TL path                        -> denied
 #   - everything else                                      -> denied with a reason that names the seat to delegate to
@@ -36,6 +37,7 @@ case "$tool" in
       *) exit 0 ;;
     esac
     ;;
+  EnterWorktree) ;;
   *) exit 0 ;;
 esac
 # TL paths are exempt; no repo path is

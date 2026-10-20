@@ -74,6 +74,7 @@ The TL passes a `model` on every spawn, which overrides the agent's default mode
 - Pruning at arm time: markers older than 1 day and run dirs older than 7 days are both deleted.
 - `--soft` skips the marker: same rules, not enforced. To leave strict mode, `rm` the marker.
 - The guard's allow list: `~/.cache/senioro-tl/`, `~/.claude/projects/*/memory/`, `*/scratchpad/` and `MEMORY.md`. Subagent tool calls are always allowed.
+- The guard also denies `EnterWorktree` from the TL: the TL stays at the repo root, and seats create and remove worktrees.
 - Recommended: add `~/.cache/senioro-tl` to the additional directories setting under permissions, so that Workflow `scriptPath` scripts are readable.
 - Recommended (INFERRED, not tested live): on a GitHub install, also add the plugin cache dir `~/.claude/plugins/cache/senioro-stack` to the same additional directories setting, so that seats can read the review rubrics by path without a permission prompt. Add the parent dir: the versioned dir below it changes on every update.
 - `/effort` changes are saved as that model's default.
