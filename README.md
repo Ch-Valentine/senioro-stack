@@ -2,7 +2,7 @@
 
 ## What it is
 
-A Claude Code plugin marketplace (`senioro-stack`) that ships one plugin, `senioro`: a Tech Lead mode for Claude Code. In TL mode the main session delegates every read, search, investigation and change to five seat agents with capped reports, keeps progress in its own compact context, routes each task to the cheapest model that cannot get it wrong, and asks the user one decision at a time. A strict-mode guard hook keeps the TL from touching the tree itself. The plugin also ships review and decision skills.
+A Claude Code plugin marketplace (`senioro-stack`) that ships one plugin, `senioro`: a Tech Lead mode for Claude Code. In TL mode the main session delegates every read, search, investigation and change to five seat agents with capped reports, keeps progress in its own compact context, routes each task to the cheapest model that cannot get it wrong, auto-decides reversible calls, and batches the user's decisions, up to 4 per ask. A strict-mode guard hook keeps the TL from touching the tree itself. The plugin also ships review and decision skills.
 
 ## Install
 
@@ -37,7 +37,7 @@ Skills (three are model-invocable: Claude loads `technical-writing`, `typescript
 | Skill | Purpose | Model-invocable |
 |---|---|---|
 | `/senioro:orchestrate` | Tech Lead mode: delegate to the seats, decide, ask the user; arms the strict-mode guard. | No |
-| `/senioro:review-implementation` | Deep review of a feature's implementation, with a structured verdict. | No |
+| `/senioro:review-implementation` | Deep review of a feature's implementation, with a structured verdict. `--diff <base>..<head>` re-reviews only a fix diff. | No |
 | `/senioro:resolve-review-findings` | Challenge a code review's findings, confirm the real ones, apply and verify the fixes. | No |
 | `/senioro:review-spec-plan` | Review a design spec or plan, with per-dimension ratings and a verdict. | No |
 | `/senioro:resolve-plan-issues` | Resolve a plan's open issues: auto-fix trivial ones, walk through complex ones. | No |
@@ -74,6 +74,7 @@ The TL passes a `model` on every spawn, which overrides the agent's default mode
 - Pruning at arm time: markers older than 1 day and run dirs older than 7 days are both deleted.
 - `--soft` skips the marker: same rules, not enforced. To leave strict mode, `rm` the marker.
 - The guard's allow list: `~/.cache/senioro-tl/`, `~/.claude/projects/*/memory/`, `*/scratchpad/` and `MEMORY.md`. Subagent tool calls are always allowed.
+- The guard also denies `EnterWorktree` from the TL: the TL stays at the repo root, and seats create and remove worktrees.
 - Recommended: add `~/.cache/senioro-tl` to the additional directories setting under permissions, so that Workflow `scriptPath` scripts are readable.
 - Recommended (INFERRED, not tested live): on a GitHub install, also add the plugin cache dir `~/.claude/plugins/cache/senioro-stack` to the same additional directories setting, so that seats can read the review rubrics by path without a permission prompt. Add the parent dir: the versioned dir below it changes on every update.
 - `/effort` changes are saved as that model's default.

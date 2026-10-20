@@ -94,8 +94,12 @@ done
 guard "$(hin Grep '{"pattern":"x","path":"/r"}')"; check 36 2
 # 37 NotebookEdit notebook_path /r/n.ipynb (split from 17: NotebookEdit is in the guarded tool list)
 guard "$(hin NotebookEdit '{"notebook_path":"/r/n.ipynb"}')"; check 37 2
+# 38 EnterWorktree from the TL -> denied
+guard "$(hin EnterWorktree '{"name":"w"}')"; check 38 2
+# 39 EnterWorktree from a subagent (agent_id set) -> allowed
+guard '{"session_id":"s1","agent_id":"a1","tool_name":"EnterWorktree","tool_input":{"name":"w"}}'; check 39 0
 
-if [ "$passed" -eq "$total" ] && [ "$total" -eq 37 ]; then
+if [ "$passed" -eq "$total" ] && [ "$total" -eq 39 ]; then
   echo "PASS $passed/$total"
 else
   echo "FAIL $passed/$total"; exit 1
