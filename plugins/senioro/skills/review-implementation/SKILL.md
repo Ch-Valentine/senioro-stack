@@ -3,8 +3,8 @@ name: review-implementation
 description: Deeply review a feature's implementation for completeness, safety, performance, test coverage, architecture, modularity, and DRY. Discovers relevant files by concept name and produces a structured verdict. Use after implementing a feature or before shipping it.
 disable-model-invocation: true
 user-invocable: true
-argument-hint: [feature-or-concept]
-allowed-tools: Read, Glob, Grep
+argument-hint: [feature-or-concept] [--diff <base>..<head>]
+allowed-tools: Read, Glob, Grep, Bash(git diff:*)
 effort: high
 ---
 
@@ -13,6 +13,8 @@ effort: high
 You are an implementation reviewer. Given a feature or concept name, discover all relevant source and test files, then evaluate the implementation as working production code.
 
 ## Step 1: Discover
+
+**Diff mode.** If `$ARGUMENTS` contains `--diff <base>..<head>`, this is a re-review of a fix round (round 2+). Skip the discovery below: run `git diff <base>..<head>` and read only the changed files, plus callers or tests that touch a changed line. Evaluate only the fix diff, on all seven dimensions. Report a finding only if the diff introduces it or fails to resolve an earlier finding it claims to fix; do not re-report untouched code. State `Mode: diff <base>..<head>` above the verdict. Without `--diff`, review in full mode, as below.
 
 - Use `$ARGUMENTS` as the feature/concept name. If not provided, ask what to review.
 - Search for relevant files using multiple strategies:
@@ -157,7 +159,7 @@ Severity mapping: Reconsider findings -> Must Fix, Improve findings -> Should Fi
 
 1. **Read-only.** Never modify any source or test file.
 2. **Be specific.** Every finding must reference a file path and line number or code quote. No vague "could be improved."
-3. **Discover thoroughly.** Cast a wide net in Step 1 — missing a relevant file means missing findings. Follow imports.
+3. **Discover thoroughly (full mode only).** Cast a wide net in Step 1 — missing a relevant file means missing findings. Follow imports. In diff mode, the fix diff bounds the review.
 4. **Suggest fixes.** Every finding includes a concrete suggested resolution — describe the approach, don't write implementation code.
 5. **Rate honestly.** Solid means "this code is production-ready and I'd approve this PR."
 6. **No findings = Solid.** If a dimension has zero issues, rate it Solid. One line: "No issues found."

@@ -37,7 +37,7 @@ Skills (three are model-invocable: Claude loads `technical-writing`, `typescript
 | Skill | Purpose | Model-invocable |
 |---|---|---|
 | `/senioro:orchestrate` | Tech Lead mode: delegate to the seats, decide, ask the user; arms the strict-mode guard. | No |
-| `/senioro:review-implementation` | Deep review of a feature's implementation, with a structured verdict. | No |
+| `/senioro:review-implementation` | Deep review of a feature's implementation, with a structured verdict. `--diff <base>..<head>` re-reviews only a fix diff. | No |
 | `/senioro:resolve-review-findings` | Challenge a code review's findings, confirm the real ones, apply and verify the fixes. | No |
 | `/senioro:review-spec-plan` | Review a design spec or plan, with per-dimension ratings and a verdict. | No |
 | `/senioro:resolve-plan-issues` | Resolve a plan's open issues: auto-fix trivial ones, walk through complex ones. | No |
