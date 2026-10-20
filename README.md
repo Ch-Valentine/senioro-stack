@@ -2,7 +2,7 @@
 
 ## What it is
 
-A Claude Code plugin marketplace (`senioro-stack`) that ships one plugin, `senioro`: a Tech Lead mode for Claude Code. In TL mode the main session delegates every read, search, investigation and change to five seat agents with capped reports, keeps progress in its own compact context, routes each task to the cheapest model that cannot get it wrong, and asks the user one decision at a time. A strict-mode guard hook keeps the TL from touching the tree itself. The plugin also ships review and decision skills.
+A Claude Code plugin marketplace (`senioro-stack`) that ships one plugin, `senioro`: a Tech Lead mode for Claude Code. In TL mode the main session delegates every read, search, investigation and change to five seat agents with capped reports, keeps progress in its own compact context, routes each task to the cheapest model that cannot get it wrong, auto-decides reversible calls, and batches the user's decisions, up to 4 per ask. A strict-mode guard hook keeps the TL from touching the tree itself. The plugin also ships review and decision skills.
 
 ## Install
 
