@@ -7,15 +7,14 @@ description: "Applies a layered technical-writing standard: Diátaxis structure,
 
 The goal is writing a tired engineer understands on the first read. Four layers get you there, one question each: what kind of document is this, how do sentences address the reader, how much does each sentence carry, and can any sentence be read two ways. Apply all four.
 
-Three rules sit above the layers:
+Two rules sit above the layers:
 
-- **Cut every word that does no work.** If the sentence survives without a word, the word goes. "In order to" is "to". "It is important to note that" is nothing.
-- **Use the short, everyday word.** "Use", not "utilize". "Help", not "facilitate". "Do", not "perform". A long word has to buy its length with precision.
+- **Cut every word that does no work, and use the short, everyday word.** `/senioro:unslop` holds the word lists: filler, plain words, jargon, figurative language.
 - **When a rule makes a sentence worse, fix the sentence another way or leave it alone.** The rules serve the reader. A sentence that follows every rule and sounds like a machine wrote it has failed.
 
 The codebase is the word list. Write the real symbol, file, flag, or command name, not a synonym or a description of it.
 
-Don't invent jargon. Use the words a developer would say out loud: "move", "delete", "a budget that only decreases", not "evacuate", "ratchet", or "endgame". A named pattern is fine when the doc says what it means the first time. Propose a new offender and its replacement as an addition to `/senioro:unslop`'s abstract-metaphor rule in your reply, with the diff. Don't edit that skill.
+Don't invent jargon. Use the words a developer would say out loud. A named pattern is fine when the doc says what it means the first time. Propose a new offender and its replacement as an addition to `/senioro:unslop`'s abstract-metaphor rule in your reply, with the diff. Don't edit that skill.
 
 ## Vary the rhythm
 
@@ -37,17 +36,9 @@ One document, one mode. Two questions pick it: does the content inform action (d
 
 Use the compass on a whole document or on one sentence.
 
-**Tutorial: learning by doing.** You are the teacher. The learner's success is your job, not theirs. Open by saying what the learner will build, not what they will "learn". Every step produces a visible result, early and often. Tell them what they should see: the expected output, the prompt change, the log line. Cut explanation to one clause and a link. Teaching pauses break the lesson. Stay concrete. Write as "we", in commands: "First, do x. Now, do y."
-
-**How-to: steps to a goal.** Solve a problem a person has, not an operation the machine can perform. Assume competence. Skip teaching. Action only: no digressions, no background, no completeness for its own sake. Link those instead. Allow forks and judgment: "If you want x, do y." Name the guide by the task: "How to calibrate the radar array", not "Radar array calibration".
-
-**Reference: facts for lookup.** Describe. Only describe. No instruction, no persuasion, no opinion. Be dry, complete, and sure. State facts, options, limits, and errors with no hedging. Mirror the structure of the thing described, so code and docs can be navigated together. Put material where readers expect it. Generate from code where possible, so it stays true.
-
-**Explanation: understanding and why.** One bounded topic, readable away from the product. Each title should tolerate an implicit "About..." in front. Anchor on a real why question. Give context: design decisions, history, constraints, alternatives. Opinion is allowed here and nowhere else.
+Read `references/diataxis.md` when writing a whole document. It says what each mode asks of the writer. Commit messages and PR descriptions skip it.
 
 Don't mix modes: no reference tables inside a tutorial, no tutorial hand-holding inside reference, no arguing inside a how-to. Split and link instead.
-
-Source: diataxis.fr, fetched 2026-07-18.
 
 ## Write sentences to the reader (Google developer style)
 
@@ -56,14 +47,12 @@ Source: diataxis.fr, fetched 2026-07-18.
 - Write instructions as commands: "Click Submit." State facts plainly. Never "should be done".
 - Put the condition before the instruction: "To delete the document, click Delete." The reader skips what does not apply.
 - Put the common case first. Exceptions after.
-- Sound like a knowledgeable friend. No buzzwords, no figurative language, no "please" in instructions, and never "simply", "easy", or "quickly" in a procedure. If it were simple, the reader would not be here.
+- Sound like a knowledgeable friend. No buzzwords, no "please" in instructions, and never "simply", "easy", or "quickly" in a procedure. If it were simple, the reader would not be here.
 - Don't pre-announce ("we will soon support...") and don't start consecutive sentences with the same phrase.
 - Link with words that say where the link goes: the page title or a short description. Never "click here". Prefer a sentence of context on the page over a link off it.
 - Headings carry the point, not just the topic ("Pick the mode first", not "Modes"). Sentence case. A task heading is a bare verb phrase ("Create an instance"). A concept heading is a noun phrase. One h1 per page, no skipped levels.
 - Numbered lists for sequences, bullets for everything else. Introduce a list with a complete sentence. Keep items parallel.
 - Code goes in code font. UI elements go in bold. Use serial commas. Drop "etc." and say up front that a list is partial.
-
-Source: developers.google.com/style, fetched 2026-07-18.
 
 ## Make statements load one at a time (STE rules)
 
@@ -75,8 +64,6 @@ Source: developers.google.com/style, fetched 2026-07-18.
 - Pick one word per action and stick to it: "start", not "start" here and "initiate" there.
 - Write procedures as direct commands, never as narration and never in the passive: "Install the component", not "the component must be installed".
 - Avoid "-ing" words where you can. They take too many grammatical jobs and breed misreadings.
-
-Source: asd-ste100.org (Issue 9, 2025), fetched 2026-07-18. The numbered rules and dictionary live in the spec PDF. The principles above are the transferable core.
 
 ## Leave no sentence open to two readings (Global English)
 
@@ -91,9 +78,7 @@ Source: asd-ste100.org (Issue 9, 2025), fetched 2026-07-18. The numbered rules a
 - Make text in parentheses a full grammatical unit or its own sentence. Never form plurals with "(s)".
 - No slashes: write "a, b, or both" instead of "a/b" or "and/or".
 - Call each thing by one name, everywhere. A doc that says "the gate", "the ratchet", and "the budget check" for one thing teaches three things. Rewording an unchanged sentence between edits costs the same way. Don't churn what didn't change.
-- Skip idioms, colloquialisms, Latin abbreviations, and metaphors. A non-native reader, a translator, and an agent all parse plain constructions best.
-
-Source: Kohl, The Global English Style Guide (SAS Press). Guideline text fetched from the Internet Archive and the SAS sample chapter, 2026-07-18.
+- Skip idioms, colloquialisms, and Latin abbreviations. A non-native reader, a translator, and an agent all parse plain constructions best.
 
 ## Voice and repo specifics
 

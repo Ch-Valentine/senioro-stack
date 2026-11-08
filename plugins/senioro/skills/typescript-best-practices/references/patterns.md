@@ -156,18 +156,13 @@ Every `as` is a potential runtime crash. Cast only after the type system has ver
 // Don't
 const user = data as User;
 
-// Do. Earn the cast at the boundary.
+// Do. Parse at the boundary; see "Schemas before hand-rolled guards".
 function parseUser(data: unknown): User {
-  if (typeof data !== "object" || data === null) {
-    throw new Error("expected object");
-  }
-  if (!("id" in data) || typeof (data as Record<string, unknown>).id !== "string") {
-    throw new Error("expected id");
-  }
-  // ... validate all fields
-  return data as User; // OK, earned cast after full validation
+  return UserSchema.parse(data);
 }
 ```
+
+With no schema library in the repository, narrow each field with `typeof` and `in`, and return the narrowed value without an `as`.
 
 When refactoring an `as` out of existing code, identify why TypeScript can't infer:
 
