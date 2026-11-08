@@ -5,5 +5,14 @@
   "homepage": "https://github.com/Ch-Valentine/senioro-stack",
   "repository": "https://github.com/Ch-Valentine/senioro-stack",
   "license": "MIT",
-  "keywords": ["tech-lead", "orchestration", "subagents", "code-review"]
+  "keywords": ["tech-lead", "orchestration", "subagents", "code-review"],
+  "userConfig": {
+    "wallet": {
+      "type": "string",
+      "title": "Wallet",
+      "description": "Which models the seats run on. ramen: cheapest, sushi: sonnet with opus on hard tasks, omakase-bro: opus on every seat except the runner, which runs on sonnet. Unset is sushi.",
+      "default": "sushi",
+      "options": ["ramen", "sushi", "omakase-bro"]
+    }
+  }
 }

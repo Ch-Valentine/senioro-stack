@@ -4,7 +4,7 @@ Why each rule in SKILL.md exists. For maintainers; never loaded at runtime.
 
 ## Sources
 
-- Official: skills (`hooks`, `effort`, `model` frontmatter; `${CLAUDE_SESSION_ID}`), sub-agents (per-call `model` beats frontmatter; `effort` pinned per seat; live reload of agent files), hooks (`agent_id` present only inside subagents; exit 2 blocks) — https://code.claude.com/docs/en/skills, /sub-agents, /hooks, /model-config.
+- Official: skills (`hooks`, `effort`, `model` frontmatter; `${CLAUDE_SESSION_ID}`), sub-agents (per-call `model` beats frontmatter; `effort` pinned per seat, with a per-spawn `effort` parameter; live reload of agent files), hooks (`agent_id` present only inside subagents; exit 2 blocks) — https://code.claude.com/docs/en/skills, /sub-agents, /hooks, /model-config.
 - Anthropic engineering: the four-part task contract (objective, output format, tools/sources, boundaries) and 1–2k-token distilled reports — https://www.anthropic.com/engineering/multi-agent-research-system, /effective-context-engineering-for-ai-agents.
 - Community: over-claiming and zero-tool-use reports — https://github.com/anthropics/claude-code/issues/39981, https://github.com/anthropics/claude-code/issues/67730.
 - Community: inline reports overflowing the parent — https://github.com/anthropics/claude-code/issues/23463.
@@ -17,10 +17,11 @@ Why each rule in SKILL.md exists. For maintainers; never loaded at runtime.
 Claude Code docs (v2.1.285, 2026-09-29) — https://code.claude.com/docs/en/sub-agents, /skills, /hooks, /model-config, /workflows, /context-window:
 - A subagent's final message enters the parent in full; the parent's prompt stays in the parent's context.
 - Skill bodies are re-attached after compaction (up to 5K tokens per skill, 25K total).
-- `CLAUDE_CODE_EFFORT_LEVEL` overrides skill and agent `effort` frontmatter; skill `effort` likely applies only to the invoking turn.
+- `CLAUDE_CODE_EFFORT_LEVEL` overrides skill and agent `effort` frontmatter; a skill's `effort` applies for the rest of the current turn.
 - Only a Workflow's return value reaches the parent; an inline `script` enters it, `scriptPath`/`name` do not. Saved workflows may live in `~/.claude/workflows/`.
 - Nested subagents default to 3 levels; seats without the `Agent` tool cannot spawn.
-- Task tools are off by default on 5.x models (`CLAUDE_CODE_ENABLE_TODO_TOOLS=1`).
+- A resume re-sends the whole history and reads the cache only while it is warm (5m); three cold resumes rewrote 702,301 tokens ($3.51), so a follow-up after a user question or another seat's run goes to a fresh seat (spec 001 #1, F2–F4).
+- Effort: at max, the previous turn's output (72% thinking) explained 69% of TL context growth; `/effort high` cuts TL thinking but is saved as that model's default. No level is recommended: the choice is the user's (spec 001 #6, C3, F8, F9).
 
 ## Patterns from public orchestration skills
 
@@ -33,10 +34,10 @@ Claude Code docs (v2.1.285, 2026-09-29) — https://code.claude.com/docs/en/sub-
 1. Hands off the tree — everything the TL reads stays in its context, and soft delegation rules get ignored, so a hook enforces it (hooks docs: exit 2 blocks; claude-code issues 18352, 5528).
 2. One copy of every artifact — no repo path is TL-owned; TL files live in the run dir, and seats edit the canonical file in place (addyosmani/agent-skills: one path per artifact; obra/superpowers: one canonical plan).
 3. No ledger — progress lives in the TL's context plus the real artifacts, which already hold the durable state (mattpocock/skills: state = tickets + git; addyosmani/agent-skills: spec + checkboxes + git; docs: skill bodies are re-attached after compaction).
-4. Short briefs, capped reports in files — pointers instead of pasted content, full reports in files, a few lines back; a subagent's final message enters the parent in full (Anthropic engineering: task contract, distilled reports; claude-code issue 23463; obra/superpowers: brief files by path, ≤ 15-line returns; claude-code issue 41356: seats never see memory, so briefs must point at it).
-5. Cheapest capable seat, `model` on every spawn, no built-in agents for work — per-call `model` beats frontmatter and effort is pinned per seat; built-in agents return uncapped reports; `senioro:architect` runs on opus at xhigh effort, writes only its design file, and a blind critic reviews each design (sub-agents docs; obra/superpowers: model discipline).
-6. Batch by shared reads; pipelines of 3 or more seats as a Workflow by `scriptPath` — only a Workflow's return value reaches the parent, and its script must sit where the session can read it, such as the run dir (docs: workflows, sub-agents).
+4. Pointer briefs, capped reports in files — pointers instead of pasted content (no character cap on a brief: the constraint is no pasted content), full reports in files, a few lines back; a subagent's final message enters the parent in full (Anthropic engineering: task contract, distilled reports; claude-code issue 23463; obra/superpowers: brief files by path, ≤ 15-line returns; claude-code issue 41356: seats never see memory, so briefs must point at it).
+5. Cheapest capable seat, `model` on every spawn, no built-in agents for work — per-call `model` beats frontmatter, a spawn without `model` runs the seat's definition model, and effort is pinned per seat, except a sushi no-trigger mechanical spawn, which passes `effort: medium` (spec 002 #26, E1 PASS); built-in agents return uncapped reports; `senioro:architect` runs on opus at xhigh effort, writes only its design file, and a blind critic reviews each design (sub-agents docs; obra/superpowers: model discipline).
+6. Batch by shared reads; pipelines of 3 or more seats as a Workflow by `scriptPath` — seats share no cache and every spawn pays its own launch overhead; only a Workflow's return value reaches the parent, and its script must sit where the session can read it, such as the run dir (docs: workflows, sub-agents).
 7. Auto-decide reversible calls, batch the rest — most asks end on the recommended option, so reversible classes are decided and logged as `Noted:` lines on the board; the user's decisions go out up to 4 independent questions per ask; decisions by proxy: a roster, then the decisions, then one implementer applies them all and one verifier checks the diff.
 8. Refute-by-default verification — seats over-claim and report without tool use, so no self-report ships; one sonnet verifier by default, a second blind opus verifier only for a refuted must_fix or a security-sensitive roster; a review of the rewrite with one reviewer seat confirmed findings this way (claude-code issues 39981, 67730; addyosmani/agent-skills: at most 3 review rounds).
-9. Say seats × models before launching; stop escalating after two misses — seats spawning agents burn tokens fast, and nesting is capped (mattpocock/skills; docs: nested subagents default to 3 levels).
+9. Say seats × models before launching; one ladder (resend, one tier up, then ask the user at the cap or the third miss) — seats spawning agents burn tokens fast, and nesting is capped (mattpocock/skills; docs: nested subagents default to 3 levels).
 10. Never debug yourself; hand off, then compact, at a spec or phase close — the orchestrator must not debug, and reasoning degrades past ~100K tokens; a handoff file written once with pointers only keeps resume state off-context without becoming a ledger (mattpocock/skills; docs: context-window).
