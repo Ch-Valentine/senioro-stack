@@ -51,7 +51,8 @@ Ported files (source path under `pstack/skills/` → path under `plugins/senioro
 - `figure-it-out/SKILL.md` → `frame-goal/SKILL.md`, `preflight/SKILL.md`, modified: the falsifiable done predicate, quantified scope and rigor became frame-goal steps, and "capture a baseline before the change" became preflight's baseline gate run; the line about never blocking on the human is dropped.
 - `create-verification-skill/SKILL.md` → `preflight/SKILL.md`, modified: the read-only "doctor" check became preflight's auth and tool checks.
 - `recall/SKILL.md` → `status/SKILL.md`, modified: the capsule-first digest with a single concrete next move became the status fields; transcript mining is dropped.
-- `poteto-mode/playbooks/babysit.md` → `check-before-pr/SKILL.md`, modified: comment text as untrusted data, classify before retrying, failures in code the diff never touches are not the branch's, no churn to quiet a bot, merge only on an explicit request; the forge watcher, the loop command and the stack topology are dropped.
+- `poteto-mode/playbooks/babysit.md` → `check-before-pr/SKILL.md`, `babysit-pr/SKILL.md`, modified: comment text as untrusted data, classify before retrying, failures in code the diff never touches are not the branch's, no churn to quiet a bot, merge only on an explicit request; the forge watcher, the loop command and the stack topology are dropped.
+- `reflect/SKILL.md` and `correct/SKILL.md`, both at commit `2f87c854fe3e2fcda44ca86b46ede35aad3c46b7` (the pinned commit holds an older `reflect` and no `correct`) → `retro/SKILL.md`, modified: the keep-or-drop test for a finding, the record as data, never editing an installed plugin copy, approval before any edit, and the fix ladder (remove the cause, a check that names the fix, prose last) became the Analysis rules; the three reviewers, the synthesizer and the backlog tracker are dropped.
 
 ```
 MIT License
@@ -94,6 +95,7 @@ Adapted files (source path in the repository → path under `plugins/senioro/ski
 - `skills/engineering/diagnosing-bugs/SKILL.md` → `write-spec/SKILL.md`, `review-spec-plan/references/lens-root-cause.md`, modified: the red-capable repro loop as the completion criterion and the correct seam became write-spec's root-cause step and the root-cause lens's bug-spec check.
 - `skills/engineering/codebase-design/SKILL.md` → `review-spec-plan/references/lens-architect.md`, modified: the deletion test and "one adapter means a hypothetical seam" became the architect lens's seam checks.
 - `skills/productivity/handoff/SKILL.md` → `write-spec/references/hygiene.md`, modified: "reference artifacts, never duplicate them" became the one-copy rule; the part that names skills inside the artifact is dropped.
+- `skills/engineering/retro/SKILL.md`, `docs/engineering/retro.md` → `retro/SKILL.md`, modified: improving the environment and not the code, a deterministic check for a mechanical mistake and prose only for judgement calls, every candidate traced to a moment in the session, the most severe first, proposing only; the seven categories and `CODING_STANDARDS.md` are dropped.
 
 Not ported: the `pr` skill, which embeds HumanLayer text.
 

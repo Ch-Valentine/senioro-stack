@@ -1,15 +1,15 @@
 ---
 name: check-before-pr
-description: "Classifies the branch diff, then runs the checks its class needs (the project's own gates, static analysis and AI review, plus a prompt audit on prompt files), detected per project, fixes real findings at their root, and re-runs until clean; never creates or merges a pull request without the user's approval. Use when a branch's work is done and before a pull request is opened."
+description: "Classifies the branch diff, then runs the checks its class needs (the project's own gates, static analysis and AI review, plus a prompt audit on prompt files), detected per project, fixes real findings at their root, and re-runs until clean; opens the PR when the user asked for one (the request is the approval) and asks once after a bare run; never merges. Use when a branch's work is done and before a pull request is opened."
 disable-model-invocation: true
 user-invocable: true
-argument-hint: "[base-branch]"
+argument-hint: "[base-branch] [--pr]"
 allowed-tools: Agent, Bash, Read, Edit, Write, Grep, Glob
 ---
 
 # Check before PR
 
-Get the branch clean on the checks its change class needs (the project's own gates, static analysis and AI review, and a prompt audit on prompt files) before anyone opens a pull request. Fix what is real at its root, explain what is not, and stop at the user's approval. Never create, push for, or merge a PR on your own.
+Get the branch clean on the checks its change class needs (the project's own gates, static analysis and AI review, and a prompt audit on prompt files) before anyone opens a pull request. Fix what is real at its root and explain what is not. Open the PR when the user asked for one (the request is the approval), ask once after a bare run, and never merge.
 
 When a brief tells you to apply this file: do every step except talking to the user.
 Return each user decision as an OPEN DECISIONS line (options, recommended first), and write files only where the brief says.
@@ -19,11 +19,13 @@ Wallet: ${user_config.wallet} (unset, unknown or still literal text: sushi). Eve
 
 ## Input
 
-`$ARGUMENTS` is an optional base branch. Without one, use the remote default branch (`git symbolic-ref --short refs/remotes/origin/HEAD`); if that fails, ask which branch the PR targets.
+`$ARGUMENTS` is an optional base branch and an optional `--pr`. Without a base, use the remote default branch (`git symbolic-ref --short refs/remotes/origin/HEAD`); if that fails, ask which branch the PR targets. `<base>` stays the ref the diff starts from; `<base branch>` is `<base>` with the remote prefix stripped (`origin/main` becomes `main`), and it is the one used for `gh pr create --base` and every branch-name comparison.
+
+A PR request is `--pr` in `$ARGUMENTS`, or a user message (or brief) that asks for a PR.
 
 The scope is the branch diff: the files changed since `git merge-base <base> HEAD` plus untracked files, as `change-class.sh` reads it. Uncommitted work is part of it.
 
-The tree id names the content a report covers: `git rev-parse "$(git stash create | grep . || git rev-parse HEAD)^{tree}"`, after `git add` on any untracked file of the diff.
+The tree id names the content a report covers: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard.sh" --tree` (the working content, untracked files included; the routine `--record` uses).
 
 The run dir is the absolute path `$HOME/.cache/senioro-tl/runs/${CLAUDE_SESSION_ID}` (the brief's run dir in TL mode). Round reports go to `<run dir>/reports/`, never into the repo.
 
@@ -32,7 +34,7 @@ The run dir is the absolute path `$HOME/.cache/senioro-tl/runs/${CLAUDE_SESSION_
 Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/change-class.sh" <base>` and print `CLASS: <none|docs|code>`. A diff with any code path is code; an unknown file type counts as code.
 
 - **none** (empty diff): nothing to check. Go to step 4.
-- **docs**: run only the linters the project scopes to these files. No test, typecheck, build, static analysis, AI review or prompt audit. Nothing is recorded; after the clean run go to step 4, where the PR hook asks with no loop.
+- **docs**: run only the linters the project scopes to these files. No test, typecheck, build, static analysis, AI review or prompt audit. Nothing is recorded; after the clean run go to step 4 (the PR hook stays silent on this class).
 - **code**: everything below.
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/preflight/references/project-tools.md` to the repo: the gates (test, lint, typecheck, build), static analysis and AI review, each with its command and source `file:line`. Print the tool list in one line, then continue without waiting.
@@ -84,13 +86,13 @@ d. **Re-run** every gate and tool. The re-run's findings start the next round.
 
 ## Step 3: Stop
 
-- **Clean**: every gate green, zero `fix` items on the latest run, and no open `must_fix` from the AI review or the prompt audit. Record the pass, then go to step 4:
+- **Clean**: every gate green, zero `fix` items on the latest run, and no open `must_fix` from the AI review or the prompt audit. Record the pass, then go to step 4. On a PR request the commit (step 4a) comes first and the record runs after it:
 
   ```
   bash "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard.sh" --record <run dir>/reports/prepr-<round>.md
   ```
 
-  It stores a fingerprint of the working content, uncommitted fixes included. If it exits non-zero, report its message; the pass is not recorded.
+  It records two fingerprints that both point to the report: the working-content tree (uncommitted fixes and untracked files included) and the tracked-only tree, so a commit of the checked tracked changes that leaves stray untracked files out still matches. If it exits non-zero, report its message; the pass is not recorded.
 - **No progress**: a round whose re-run has as many open `fix` items as it started with, or more. Stop and ask the user how to proceed.
 - **Round 5** ends without clean: stop and ask the user.
 
@@ -108,20 +110,33 @@ PRE-EXISTING: <n>: <id file:line>; ...
 FALSE POSITIVES: <id>: <reason>; ...
 NEEDS USER: <id>: <question>; ... (or "none")
 REPORT: <run dir>/reports/prepr-<round>.md
+LEFT OUT: <untracked paths not committed> (or "none")
+PR: <url> (or "not opened")
 ```
 
-Then ask exactly one question: "Open a PR now?"
+**A PR request** (see Input), after a clean stop or a none or docs class: no question.
 
-- On an explicit yes, with fixes still uncommitted: ask one more question, "Commit these N files now?" The user commits, or says yes and you commit exactly those files. The fingerprint is content-based, so committing exactly the checked content keeps the pass valid; any other change needs a new run.
-- Then push the branch and create the PR, using the project's PR template if there is one.
-- Merge only on a separate, explicit request to merge.
-- Anything short of an explicit yes is a no: report and stop.
+a. When the current branch (`<branch>`) equals `<base branch>`: commit nothing, push nothing, and stop with a one-line report that the work needs its own branch. Otherwise commit the checked tracked changes plus the untracked files this work created, with a plain message. Any other untracked file stays out and goes on the `LEFT OUT` line.
+b. Code class only: run the `--record` command of step 3. A none or docs class has no round report and records nothing. If `--record` exits non-zero, report its message and stop before the push.
+c. Run `git push -u origin HEAD`. Never force.
+d. Run `gh pr view --json state,url`. If it returns an **OPEN** PR, the push has updated it: print its URL. Otherwise write `<run dir>/pr-body.md` (title line, blank line, body; from the project's PR template if one exists) and create the PR, the body through the file:
 
-The pr-guard hook backs this up: it denies PR create and merge on a code diff this loop has not passed, and asks the user for approval on content it has passed and on a diff with no code (class none or docs). If the user explicitly says to skip the loop, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard.sh" --override`; the approval prompt that follows is still theirs to answer.
+   ```
+   tail -n +3 <run dir>/pr-body.md | gh pr create --base <base branch> --head <branch> --title "$(head -n 1 <run dir>/pr-body.md)" --body-file -
+   ```
+
+e. Apply `${CLAUDE_PLUGIN_ROOT}/skills/babysit-pr/SKILL.md` with the PR number.
+
+**A bare run**: ask exactly one question, "Open a PR now?" On an explicit yes, do a–e; the yes covers the commit. Anything short of an explicit yes is a no: report and stop.
+
+If the user never asked for a PR, never open one. Merge only on a separate, explicit request to merge.
+
+pr-guard backs this up: a PR create on a code diff this loop has not passed is denied once per HEAD, with a reminder to Claude. A retry passes. It never asks on create. Merges are unchanged; `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard.sh" --override` is for a merge the user wants without the loop.
 
 ## Step 5: TL mode
 
-- An implementer (the pre-PR loop row) applies this file and runs steps 1–3 and the digest, without the `--record` command.
+- An implementer (the pre-PR loop row) applies this file and runs steps 1–3 and the digest, without the `--record` command. On a PR request it also writes `<run dir>/pr-body.md` (the step 4d form) and lists the files to commit (step 4a) and the left-out ones.
 - The prompt audit is a NEEDS line for a runner: the `prompt-audit.sh` call above, with the report path under the run dir and `timeout` 600000. The TL hands the report path back for triage.
-- A verifier then re-runs the tools blind, checks the diff for added suppressions and for dismissed items that are real, and runs the `--record` command only if its own re-run is clean.
-- The step 4 questions go to the user through the TL. On the user's yes, the TL commits and pushes and opens the PR; never before.
+- On a PR request the TL first checks the branch (step 4a: on `<base branch>`, stop), then commits the listed files. A verifier then re-runs the tools blind on HEAD, checks the diff for added suppressions and for dismissed items that are real, and runs the `--record` command (code class only) only if its own re-run is clean.
+- The TL pushes and opens the PR (steps 4c–4d), then starts babysit (step 4e), only after the verifier's re-run is clean and, on the code class, its `--record` succeeded. Otherwise it reports the verifier's findings to the user and stops: no push, no PR. The implementer's report ends with NEXT lines holding the exact push, create and first babysit spawn, so the TL never reads a stage skill.
+- After a bare run, the step 4 question goes to the user through the TL; on yes, the PR request steps above follow.

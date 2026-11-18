@@ -1,6 +1,6 @@
 # Lens Q: spec quality
 
-Review the target as a **communication document**, not code: a good plan gives an implementer enough context to build it in one pass without ambiguity. Read linked companion files as part of the target, and spot-check the paths and patterns it names with Grep or Glob (no full codebase audit). Rate each of the seven dimensions below and return the ratings with your findings. Also apply the hygiene rules file your brief names; each violation is a finding under the dimension it fits. Set each finding's severity with the Severity mapping at the end.
+Review the target as a **communication document**, not code: a good plan gives an implementer enough context to build it in one pass without ambiguity. Read linked companion files as part of the target, and spot-check the paths and patterns it names with Grep or Glob (no full codebase audit). Rate each of the seven dimensions below and return the ratings with your findings. Also apply the hygiene rules file your brief names; each violation is a finding under the dimension it fits. Count the target's lines with `wc -l`. Set each finding's severity with the Severity mapping at the end.
 
 ### 1. Conflicts
 
@@ -85,7 +85,7 @@ Overall verdict:
 - **REVISE** — at least one Revise, no Rethink
 - **RETHINK** — at least one Rethink
 
-Severity mapping: Rethink findings → Must Fix, Revise findings → Should Fix, cosmetic → Consider.
+Severity mapping: Rethink findings → Must Fix, Revise findings → Should Fix, cosmetic → Consider. A target over 1,000 lines is always Must Fix, whatever its dimension rating.
 
 ## What makes a good finding
 

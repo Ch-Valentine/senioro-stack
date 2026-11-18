@@ -43,11 +43,13 @@ Skills (three are model-invocable: Claude loads `technical-writing`, `typescript
 | `/senioro:review-spec-plan` | Review a design spec or plan, with per-dimension ratings and a verdict. | No |
 | `/senioro:preflight` | Check that a long run can start: seats and services, auth, tools, a baseline gate run; READY or NOT READY, read-only. | No |
 | `/senioro:status` | Print a plain-language digest: done (how verified), in flight, left, next, open decisions. | No |
-| `/senioro:check-before-pr` | Run the project's own static-analysis and AI-review tools, fix real findings at the root, re-run until clean, then ask before any PR. | No |
+| `/senioro:check-before-pr` | Run the project's own static-analysis and AI-review tools, fix real findings at the root, re-run until clean. Asked for a PR, it then opens it with no further question; run on its own, it asks once whether to open one. | No |
+| `/senioro:babysit-pr` | Watch an open PR: learn which review bots and CI checks recent PRs got, then triage new comments and failing checks, fix the valid ones and push, at most 3 rounds. Never merges and never writes on GitHub beyond the fix pushes, unless you approve the replies. | No |
 | `/senioro:review-implementation` | Deep review of a feature's implementation, with a structured verdict. `--diff <base>` re-reviews only a fix diff. | No |
 | `/senioro:resolve-review-findings` | Challenge a code review's findings, confirm the real ones, apply and verify the fixes. | No |
 | `/senioro:resolve-plan-issues` | Resolve a plan's open issues: auto-fix trivial ones, walk through complex ones. | No |
 | `/senioro:decide-step-by-step` | Resolve a plan's open decisions one by one, with a recommendation each. | No |
+| `/senioro:retro` | Session retro: one architect seat finds the session's biggest struggles in its record and proposes changes that remove their causes; you settle them one at a time. | No |
 | `/senioro:bro` | Restate the last message in plain language, with no jargon. | No |
 | `/senioro:unslop` | Cut AI tells from any writing. | Yes |
 | `/senioro:technical-writing` | Layered technical-writing standard for docs, RFCs, READMEs, PR descriptions and commit messages. | Yes |
@@ -71,8 +73,8 @@ The `wallet` option picks the models the seats run on. The table lives once, in 
 
 | Wallet | Seats |
 |---|---|
-| `ramen` | Cheapest: runner on haiku, every other seat on sonnet, the architect on opus (sonnet for a simple design task). |
-| `sushi` (default) | Runner on haiku; verifier, investigator and implementer on sonnet, and on opus when a task is security-sensitive, touches shared state or a cross-file contract, is concurrent, changes a public API, or has failed twice; architect, second blind verifier and split adjudicator on opus. |
+| `ramen` | Cheapest: runner on haiku, every other seat on sonnet, the architect on opus (sonnet for a simple design task and for a session retro). |
+| `sushi` (default) | Runner on haiku; verifier, investigator and implementer on sonnet, and on opus when a task is security-sensitive, touches shared state or a cross-file contract, is concurrent, changes a public API, or has failed twice; architect, second blind verifier and split adjudicator on opus; a session retro's architect on sonnet, and on opus when the session was compacted or has more than 25 seat reports. |
 | `omakase-bro` | Opus on every seat except the runner, which runs on sonnet. |
 
 Set it at install, `claude plugin install senioro@senioro-stack --config wallet=ramen`, or later with `/plugin configure senioro@senioro-stack`. Set it at user scope: a value in a project's `.claude/settings.json` is not read. An unset wallet, or one with an unknown value, runs as `sushi`. The picker needs Claude Code 2.1.271 or later; older versions cannot load the plugin.
@@ -87,7 +89,7 @@ Set it at install, `claude plugin install senioro@senioro-stack --config wallet=
 ## TL mode
 
 - Start it with `/senioro:orchestrate <goal>`. The guard hook registers only after `/senioro:orchestrate` has been invoked in the session.
-- Run dir: `~/.cache/senioro-tl/runs/<session>/`. Seat reports, shared context files and workflow scripts live there, never in the repo.
+- Run dir: `~/.cache/senioro-tl/runs/<session>/`. Seat reports, shared context files, workflow scripts, the handoff and the retro live there, never in the repo.
 - Strict mode is the default. Its marker is `~/.cache/senioro-tl/<session>.strict`.
 - Pruning at arm time: markers older than 1 day and run dirs older than 7 days are both deleted.
 - `--soft` skips the marker: same rules, not enforced. To leave strict mode, `rm` the marker.
@@ -97,22 +99,36 @@ Set it at install, `claude plugin install senioro@senioro-stack --config wallet=
 - Recommended (INFERRED, not tested live): on a GitHub install, also add the plugin cache dir `~/.claude/plugins/cache/senioro-stack` to the same additional directories setting, so that seats can read the review rubrics by path without a permission prompt. Add the parent dir: the versioned dir below it changes on every update.
 - `/effort` changes are saved as that model's default.
 - Seats never see memory. Point a seat at a memory file in its brief if it matters.
-- Retro: at a spec or phase close in a session with a spec dir, one implementer appends a block of at most 10 lines to `docs/work/<nnn>-<slug>/retro.md`, never rewriting old blocks: time on spec versus build, tokens and API-equivalent dollars, the seat count by model and up to three struggles. The layout is `plugins/senioro/skills/orchestrate/references/retro-template.md`; the figures come from `token-spend.sh --split` or `--phase`.
+- Retro: at a spec or phase close in a session with a spec dir, one implementer appends a block of at most 10 lines to `retro.md` in the run dir, never in the repo and never rewriting old blocks: time on spec versus build, tokens and API-equivalent dollars, the seat count by model and up to three struggles. The layout is `plugins/senioro/skills/orchestrate/references/retro-template.md`; the figures come from `token-spend.sh --split` or `--phase`. `/senioro:retro` reads it and writes its proposals beside it, as `retro-proposals-<n>.md`. Both go when the run dir is pruned.
 - The tl-guard is a guardrail that keeps the TL disciplined, not a security boundary: it allows any Bash command whose text contains an allowed path. It matches only the command's first word (after one leading `cd`) against a fixed list of file readers, so absolute paths such as `/bin/cat` and chained `cd`s are not caught.
 
 ## Pre-PR checks
 
 `/senioro:check-before-pr` classifies the branch diff with `plugins/senioro/scripts/change-class.sh [<base>]` and runs only what the class needs:
 
-| Class | Diff | Checks | PR hook |
-|---|---|---|---|
-| none | empty | nothing | asks |
-| docs | only `*.md`, `*.mdx`, `*.rst`, images and `LICENSE*`, outside prompt paths | only linters the project scopes to those files | asks, no loop |
-| code | anything else, including `*.txt` and file types it does not know | all detected gates, static analysis and AI review | denies until the loop has passed, then asks |
+| Class | Diff | Checks | PR hook: create | PR hook: merge |
+|---|---|---|---|---|
+| none | empty | nothing | silent | asks |
+| docs | only `*.md`, `*.mdx`, `*.rst`, images and `LICENSE*`, outside prompt paths | only linters the project scopes to those files | silent, no loop | asks, no loop |
+| code | anything else, including `*.txt` and file types it does not know | all detected gates, static analysis and AI review | denies once per HEAD while the loop has not passed, with a reminder to Claude; the retry passes; never asks | denies until the loop has passed, then asks |
 
 Prompt paths (`.claude/{skills,agents,commands,rules}/**`, a plugin root's `skills/`, `agents/`, `commands/` and `hooks/` dirs, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`) are code, and a diff that touches them also gets a prompt audit. `plugins/senioro/scripts/prompt-audit.sh <base> <report> <model>` starts a child `claude -p "/claude-api prompt-audit <paths>"` that runs non-interactively with `--permission-mode dontAsk` and only the tools Read, Grep, Glob and read-only git, and writes its findings to the report. The AI review and the audit each run once per tree. If the audit cannot run, the loop asks you to run it in another session or skip it.
 
 The `pr-guard` hook takes the diff against `origin/HEAD` (else `origin/main`, `origin/master`); with no such base it treats the diff as code. CI still runs every gate, whatever the class.
+
+Asking for a PR is the approval: the checks run, then commit, push and `gh pr create` follow with no question. A bare `/senioro:check-before-pr` asks once, "Open a PR now?". A PR is never opened unasked, and never merged without a separate request.
+
+No hook or script grants permissions. `/senioro:check-before-pr` and `/senioro:babysit-pr` list Bash in their `allowed-tools`, which applies only when you run them as slash commands. In TL mode, or after a plain-language request for a PR, Claude Code's default permission mode still asks before `git commit`, `git push` and `gh pr create` unless your settings allow them. To open a requested PR with no prompt in those cases, add allow rules to your own settings (`~/.claude/settings.json`, or `.claude/settings.local.json` for one project):
+
+```json
+{ "permissions": { "allow": ["Bash(git commit:*)", "Bash(git push:*)", "Bash(gh pr create:*)"] } }
+```
+
+PR babysit (`/senioro:babysit-pr [<pr>]`, also started once a PR opens):
+- Two runner seats survey the author's last 2 PRs (else the repo's) for review bots and CI checks.
+- `plugins/senioro/scripts/pr-watch.sh` waits in one background call, never a sleep loop, until the checks settle and the expected bots post, then writes a digest.
+- Each round fixes the valid comments and failing checks, verifies the fix and pushes it to the PR branch; at most 3 rounds. CI flakes are reported, not re-run.
+- It never merges, rebases, resolves threads or writes on GitHub beyond the fix pushes. If some comments were judged invalid, it asks once at the end whether to post the drafted replies.
 
 ## Platform
 
@@ -130,7 +146,7 @@ rm -rf ~/.cache/senioro-tl   # optional: deletes the TL run dirs and markers
 
 - `tests/check.sh [validate|guard|grep|lint|layout ...] [-- <path> ...]` runs the deterministic gates (all of them when none is named). It needs bash, jq, perl and claude; shellcheck is optional.
 - `plugins/senioro/scripts/token-spend.sh <session.jsonl> [--until <ISO-8601 UTC>] [--split <ISO-8601 UTC> | --phase spec|build]` prints a session's token spend per group (TL, seats, workflow agents) and per model, the seat count by model, and its waste metrics (resumes, cache gaps, docs fetches, unnamed run-dir reads, big TL reads) from the transcripts; with `--split` or `--phase` it prints only the three retro lines (spec, build, seats). `tests/token-spend.test.sh` pins it on two fixture sessions. It needs bash and jq.
-- `tests/smoke.sh` runs the model smoke tests (hook and agent) against the plugin in this clone. `tests/smoke.sh wallet` checks that a haiku session on `wallet=ramen` spawns a runner, a verifier and an implementer and uses only haiku and sonnet; `tests/smoke.sh effort` probes the per-spawn `effort` parameter (Claude Code 2.1.292 or later). `tests/smoke.sh hook` also checks that a docs-only diff gets an ask, not a deny. `tests/smoke.sh audit` runs the prompt audit on a throwaway plugin repo with one planted dated pattern (a nested `claude -p` on `$AUDIT_MODEL`, default sonnet).
+- `tests/smoke.sh` runs the model smoke tests (hook and agent) against the plugin in this clone. `tests/smoke.sh wallet` checks that a haiku session on `wallet=ramen` spawns a runner, a verifier and an implementer and uses only haiku and sonnet; `tests/smoke.sh effort` probes the per-spawn `effort` parameter (Claude Code 2.1.292 or later). `tests/smoke.sh hook` also checks that a PR create is denied once per HEAD and passes on the retry, that a docs-only diff passes with no deny, and that a merge with an override marker gets an ask that stops it. `tests/smoke.sh audit` runs the prompt audit on a throwaway plugin repo with one planted dated pattern (a nested `claude -p` on `$AUDIT_MODEL`, default sonnet).
 - `tests/smoke.sh` spends model tokens (haiku), and its hook test runs the real `/senioro:orchestrate`, which creates `~/.cache/senioro-tl/` (strict marker, run dirs) and prunes old markers and run dirs there.
 - CI (`.github/workflows/check.yml`) runs `tests/check.sh` and `tests/tl-guard.test.sh` on every push to `main` and on pull requests; it uses no API key, so `tests/smoke.sh` stays manual.
 - `plugins/senioro/skills/orchestrate/references/evidence.md` explains why each TL rule exists (research 2026-09-16 and 2026-09-29). It is for maintainers and is never loaded at runtime.

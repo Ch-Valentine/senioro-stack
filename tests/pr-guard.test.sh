@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# G2: pr-guard fixtures (SPEC-workflow section 11; cases 29-39 are the change class, spec 002 U7). Prints PASS n/n; exits non-zero on any failure.
+# G2: pr-guard fixtures (SPEC-workflow section 11; cases 29-39 are the change class, spec 002 U7; cases 42-50 are the
+# once-per-HEAD create reminder, --tree and the two-marker --record). Prints PASS n/n; exits non-zero on any failure.
+# A create never asks: with a marker, a docs diff or no way to verify it is silent; with an unchecked code diff it is
+# denied once per HEAD tree, then silent. A merge keeps the ask/deny decisions.
 # Runs plugins/senioro/scripts/pr-guard.sh with HOME set to a temp dir and cwd set to a temp git repo with one commit.
 # A decision is read from the hook's stdout JSON. "ask" needs exit 0; "deny" may exit 0 or 2 (both block).
 set -uo pipefail
@@ -53,9 +56,9 @@ pass() {
   if [ -z "${2:-}" ]; then passed=$((passed + 1)); else echo "FAIL case $1: $2"; fi
 }
 
-# silent <case>: no output, exit 0.
+# silent <case> [extra failure detail]: no output, exit 0.
 silent() {
-  local d=""
+  local d="${2:-}"
   [ "$RC" -eq 0 ] || d+="exit $RC, expected 0 "
   [ -z "$OUT" ] || d+="unexpected output: $OUT "
   pass "$1" "$d"
@@ -72,20 +75,29 @@ want() {
   pass "$1" "$d"
 }
 
+# denyonce <case> <home> <cwd> <stdin> [extra failure detail]: deny naming the pre-PR loop, then the same input
+# again is silent.
+denyonce() {
+  guard "$2" "$3" "$4"; want "$1" deny "pre-PR loop has not passed" "${5:-}"
+  guard "$2" "$3" "$4"; silent "$1 retry"
+}
+
 W=$(newrepo repo) || { echo "FAIL: fixture repo"; exit 1; }
 TREE=$(git -C "$W" rev-parse 'HEAD^{tree}')
 
-# Ask cases 1-11: a pass marker recorded for the repo's tree.
+# Cases 1-11: a pass marker recorded for the repo's tree. A create is silent; a merge (2, 5, 10) asks.
 H1=$(newhome h1)
 mkdir -p "$H1/.cache/senioro-tl/prepr" && echo "$RPT" > "$H1/.cache/senioro-tl/prepr/$TREE"
 n=1
 for c in 'gh pr create --fill' 'gh pr merge 12 --squash' 'cd app && gh pr create -t x' 'glab mr create' \
          'glab mr merge 3' 'GH_PROMPT_DISABLED=1 gh pr create' '/usr/local/bin/gh pr create' 'az repos pr create'; do
-  guard "$H1" "$W" "$(bin "$W" "$c")"; want "$n ($c)" "$ASK"
+  guard "$H1" "$W" "$(bin "$W" "$c")"
+  case "$c" in *merge*) want "$n ($c)" "$ASK" ;; *) silent "$n ($c)" ;; esac
   n=$((n + 1))
 done
 for t in mcp__github__create_pull_request mcp__github__merge_pull_request mcp__gitlab__create_merge_request; do
-  guard "$H1" "$W" "$(tin "$W" "$t")"; want "$n ($t)" "$ASK"
+  guard "$H1" "$W" "$(tin "$W" "$t")"
+  case "$t" in *__merge_*) want "$n ($t)" "$ASK" ;; *) silent "$n ($t)" ;; esac
   n=$((n + 1))
 done
 
@@ -98,46 +110,55 @@ guard "$H1" "$W" "$(tin "$W" mcp__github__get_pull_request)"; silent 16
 guard "$H1" "$W" 'not json'; silent 17
 guard "$H1" "$W" ''; silent 18
 
-# 19 case 1 with no jq and no git on PATH -> ask, could not be verified
-OUT=$(cd "$W" && printf '%s' "$(bin "$W" 'gh pr create --fill')" | HOME="$H1" PATH=/nonexistent /bin/bash "$GUARD" 2>/dev/null); RC=$?
-want 19 "$ASK" "could not be verified"
+# nojq <home> <cwd> <stdin>: runs the guard with no jq and no git on PATH; sets OUT and RC.
+nojq() { OUT=$(cd "$2" && printf '%s' "$3" | HOME="$1" PATH=/nonexistent /bin/bash "$GUARD" 2>/dev/null); RC=$?; }
 
-# 20-22 no marker -> deny; 20 names the pre-PR loop
+# 19 case 1 with no jq and no git on PATH -> silent (a create never asks)
+nojq "$H1" "$W" "$(bin "$W" 'gh pr create --fill')"; silent 19
+
+# 20-22 no marker: a create is denied once (20 names the pre-PR loop), and the same input again is silent;
+# a merge (21) is denied every time. 22 uses its own HOME, as 20 already reminded on this tree.
 H2=$(newhome h2)
-guard "$H2" "$W" "$(bin "$W" 'gh pr create')"; want 20 deny "pre-PR loop"
-guard "$H2" "$W" "$(bin "$W" 'gh pr merge 12')"; want 21 deny
-guard "$H2" "$W" "$(tin "$W" mcp__github__create_pull_request)"; want 22 deny
+guard "$H2" "$W" "$(bin "$W" 'gh pr create')"; want 20 deny "pre-PR loop has not passed"
+d=""; [ -f "$H2/.cache/senioro-tl/prepr/$TREE.reminded" ] || d="no $TREE.reminded written "
+guard "$H2" "$W" "$(bin "$W" 'gh pr create')"; silent "20 retry" "$d"
+guard "$H2" "$W" "$(bin "$W" 'gh pr merge 12')"; want 21 deny "pre-PR loop"
+guard "$H2" "$W" "$(bin "$W" 'gh pr merge 12')"; want "21 again" deny "pre-PR loop"
+H22=$(newhome h22)
+guard "$H22" "$W" "$(tin "$W" mcp__github__create_pull_request)"; want 22 deny "pre-PR loop has not passed"
+guard "$H22" "$W" "$(tin "$W" mcp__github__create_pull_request)"; silent "22 retry"
 
-# 23 --record with an uncommitted edit, then commit exactly that edit -> ask (OQ7)
+# 23 --record with an uncommitted edit, then commit exactly that edit -> silent (OQ7)
 H=$(newhome h23); R=$(newrepo r23)
 echo fix >> "$R/a.txt"
 d=""; rec "$H" "$R" --record "$RPT" || d="--record exited non-zero "
 g "$R" add -A && g "$R" commit -q -m fix
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 23 "$ASK" "" "$d"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 23 "$d"
 
-# 24 --record, then commit one more change -> deny
+# 24 --record, then commit one more change -> deny once
 H=$(newhome h24); R=$(newrepo r24)
 echo fix >> "$R/a.txt"
 d=""; rec "$H" "$R" --record "$RPT" || d="--record exited non-zero "
 g "$R" add -A && g "$R" commit -q -m fix
 echo more >> "$R/b.txt" && g "$R" add -A && g "$R" commit -q -m more
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 24 deny "" "$d"
+denyonce 24 "$H" "$R" "$(bin "$R" 'gh pr create')" "$d"
 
-# 25 --record with two uncommitted edits, commit only one -> deny
+# 25 --record with two uncommitted edits, commit only one -> deny once
 H=$(newhome h25); R=$(newrepo r25)
 echo fix >> "$R/a.txt"; echo fix >> "$R/b.txt"
 d=""; rec "$H" "$R" --record "$RPT" || d="--record exited non-zero "
 g "$R" add a.txt && g "$R" commit -q -m half
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 25 deny "" "$d"
+denyonce 25 "$H" "$R" "$(bin "$R" 'gh pr create')" "$d"
 
-# 26 --override on an unrecorded tree -> ask, user override
+# 26 --override on an unrecorded tree -> silent
 H=$(newhome h26); R=$(newrepo r26)
 d=""; rec "$H" "$R" --override || d="--override exited non-zero "
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 26 "$ASK" "user override" "$d"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 26 "$d"
 
-# 27 cwd outside any git repo -> ask, could not be verified
+# 27 cwd outside any git repo -> silent for a create; a merge still asks, could not be verified
 mkdir -p "$T/norepo"
-guard "$H1" "$T/norepo" "$(bin "$T/norepo" 'gh pr create')"; want 27 "$ASK" "could not be verified"
+guard "$H1" "$T/norepo" "$(bin "$T/norepo" 'gh pr create')"; silent 27
+guard "$H1" "$T/norepo" "$(bin "$T/norepo" 'gh pr merge 3')"; want "27 merge" "$ASK" "could not be verified"
 
 # 28 --record leaves git status --porcelain and git diff --cached unchanged (the real index is untouched)
 H=$(newhome h28); R=$(newrepo r28)
@@ -150,7 +171,7 @@ d=""; rec "$H" "$R" --record "$RPT" || d+="--record exited non-zero "
 pass 28 "$d"
 
 # Change class (spec 002 U7, #6 table, #19): with no marker, a diff with no code against the remote default branch
-# gets "ask" instead of "deny". A fixture repo gets its base from a remote-tracking ref (no network).
+# is silent on a create and "ask" on a merge, instead of "deny". A fixture repo gets its base from a remote-tracking ref (no network).
 # withbase <repo> [<ref>]: points origin/HEAD (or the named ref alone) at the repo's current commit.
 withbase() {
   local w=$1 ref=${2:-main}
@@ -162,60 +183,119 @@ commit() { mkdir -p "$1/$(dirname "$2")" && echo "$2" > "$1/$2" && g "$1" add -A
 
 H=$(newhome h29)
 R=$(newrepo r29); withbase "$R"; commit "$R" notes.md
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 29 "$ASK" "no code"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 29
 
 R=$(newrepo r30); withbase "$R"; commit "$R" src/a.ts
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 30 deny "pre-PR loop"
+denyonce 30 "$H" "$R" "$(bin "$R" 'gh pr create')"
 
 R=$(newrepo r31); withbase "$R"; commit "$R" notes.md; commit "$R" src/a.ts
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 31 deny "pre-PR loop"
+denyonce 31 "$H" "$R" "$(bin "$R" 'gh pr create')"
 
 R=$(newrepo r32); withbase "$R"
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 32 "$ASK" "no code"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 32
 
 R=$(newrepo r33); withbase "$R" master; commit "$R" notes.md
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 33 "$ASK" "no code"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 33
 
 R=$(newrepo r34); withbase "$R"; commit "$R" notes.md
-guard "$H" "$R" "$(tin "$R" mcp__github__create_pull_request)"; want 34 "$ASK" "no code"
+guard "$H" "$R" "$(tin "$R" mcp__github__create_pull_request)"; silent 34
 
 R=$(newrepo r35); withbase "$R"; commit "$R" notes.md
 guard "$H" "$R" "$(bin "$R" 'gh pr merge 12 --squash')"; want 35 "$ASK" "no code"
 
 # A markdown file under a prompt path is code, not docs.
 R=$(newrepo r36); withbase "$R"; commit "$R" .claude/skills/x/SKILL.md
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 36 deny "pre-PR loop"
+denyonce 36 "$H" "$R" "$(bin "$R" 'gh pr create')"
 
 # An untracked code file on top of a docs commit still makes the diff code.
 R=$(newrepo r37); withbase "$R"; commit "$R" notes.md; echo x > "$R/b.py"
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 37 deny "pre-PR loop"
+denyonce 37 "$H" "$R" "$(bin "$R" 'gh pr create')"
 
-# The override marker still wins on a docs-only diff: its own reason is shown.
+# The override marker on a docs-only diff: a create is silent.
 H2o=$(newhome h38); R=$(newrepo r38); withbase "$R"; commit "$R" notes.md
 d=""; rec "$H2o" "$R" --override || d="--override exited non-zero "
-guard "$H2o" "$R" "$(bin "$R" 'gh pr create')"; want 38 "$ASK" "user override" "$d"
+guard "$H2o" "$R" "$(bin "$R" 'gh pr create')"; silent 38 "$d"
 
-# A base that does not exist (no remote-tracking ref at all) keeps the deny, as cases 20-22.
-R=$(newrepo r39); commit "$R" notes.md
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 39 deny "pre-PR loop"
+# A base that does not exist (no remote-tracking ref at all) keeps the deny, as cases 20-22. Its own HOME: case 37
+# already reminded on this HEAD tree (a.txt, b.txt, notes.md).
+H=$(newhome h39); R=$(newrepo r39); commit "$R" notes.md
+denyonce 39 "$H" "$R" "$(bin "$R" 'gh pr create')"
 
-# 40 --record with a ~/ report path (a quoted ~ is not expanded by the shell) reads it under HOME; commit exactly the edit -> ask
+# 40 --record with a ~/ report path (a quoted ~ is not expanded by the shell) reads it under HOME; commit exactly the edit -> silent
 H=$(newhome h40); R=$(newrepo r40)
 echo "round report" > "$H/prepr-tilde.md"
 echo fix >> "$R/a.txt"
 d=""; rec "$H" "$R" --record \~/prepr-tilde.md || d="--record exited non-zero "
 grep -qxF "$H/prepr-tilde.md" "$H/.cache/senioro-tl/prepr"/* 2>/dev/null || d+="marker lacks the report path under HOME "
 g "$R" add -A && g "$R" commit -q -m fix
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 40 "$ASK" "" "$d"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 40 "$d"
 
-# 41 --override with an uncommitted edit, then commit exactly that edit -> ask, user override (as case 23 for --record)
+# 41 --override with an uncommitted edit, then commit exactly that edit -> silent (as case 23 for --record)
 H=$(newhome h41); R=$(newrepo r41)
 echo fix >> "$R/a.txt"
 d=""; rec "$H" "$R" --override || d="--override exited non-zero "
 g "$R" add -A && g "$R" commit -q -m fix
-guard "$H" "$R" "$(bin "$R" 'gh pr create')"; want 41 "$ASK" "user override" "$d"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 41 "$d"
 
-if [ "$passed" -eq "$total" ] && [ "$total" -eq 41 ]; then
+# 42-44 no jq and no git on PATH: a merge verb or merge tool asks; a create tool is silent.
+nojq "$H1" "$W" "$(bin "$W" 'gh pr merge 12 --squash')"; want 42 "$ASK" "could not be verified"
+nojq "$H1" "$W" "$(tin "$W" mcp__github__merge_pull_request)"; want 43 "$ASK" "could not be verified"
+nojq "$H1" "$W" "$(tin "$W" mcp__gitlab__create_merge_request)"; silent 44
+
+# 45 a read-only prepr dir: the reminder cannot be written, so the create fails open (silent), twice.
+H=$(newhome h45); R=$(newrepo r45); commit "$R" src/a.ts
+mkdir -p "$H/.cache/senioro-tl/prepr" && chmod 555 "$H/.cache/senioro-tl/prepr"
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 45
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent "45 retry"
+chmod 755 "$H/.cache/senioro-tl/prepr"
+
+# 46 --record with a stray untracked file writes two markers; --tree names the one with the stray file;
+# committing only the tracked fix (the stray file left out) -> silent.
+H=$(newhome h46); R=$(newrepo r46)
+echo fix >> "$R/a.txt"; echo stray > "$R/SPEC-stray.md"
+d=""; rec "$H" "$R" --record "$RPT" || d+="--record exited non-zero "
+full=$(cd "$R" && HOME="$H" bash "$GUARD" --tree 2>/dev/null) || d+="--tree exited non-zero "
+k=0
+for m in "$H/.cache/senioro-tl/prepr"/*; do
+  [ -e "$m" ] || continue
+  k=$((k + 1)); grep -qxF "$RPT" "$m" || d+="marker '${m##*/}' lacks the report path "
+done
+[ "$k" -eq 2 ] || d+="expected 2 markers, found $k "
+[ -n "$full" ] && [ -f "$H/.cache/senioro-tl/prepr/$full" ] || d+="no marker named after --tree '$full' "
+g "$R" add a.txt && g "$R" commit -q -m fix
+[ "$(git -C "$R" rev-parse 'HEAD^{tree}')" != "$full" ] || d+="the tracked-only commit equals the full tree "
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"; silent 46 "$d"
+
+# 47 --tree output equals the marker name --record writes (no untracked files: one marker), and --tree records nothing.
+H=$(newhome h47); R=$(newrepo r47)
+echo fix >> "$R/a.txt"
+d=""; t47=$(cd "$R" && HOME="$H" bash "$GUARD" --tree 2>/dev/null) || d+="--tree exited non-zero "
+[ ! -e "$H/.cache/senioro-tl/prepr" ] || d+="--tree wrote markers "
+rec "$H" "$R" --record "$RPT" || d+="--record exited non-zero "
+m=""; for f in "$H/.cache/senioro-tl/prepr"/*; do [ -e "$f" ] && m+="${m:+ }${f##*/}"; done
+[ -n "$t47" ] && [ "$m" = "$t47" ] || d+="--tree '$t47' differs from the marker '$m' "
+pass 47 "$d"
+
+# 48 the create reason names an existing check-before-pr SKILL.md by absolute path.
+H=$(newhome h48); R=$(newrepo r48); commit "$R" src/b.ts
+guard "$H" "$R" "$(bin "$R" 'gh pr create')"
+r=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)
+f=$(printf '%s' "$r" | grep -oE '/[^ ]*/skills/check-before-pr/SKILL\.md' | head -n 1)
+d=""; [ -n "$f" ] && [ -f "$f" ] || d="no existing check-before-pr/SKILL.md path in the reason: $r "
+want 48 deny "never asks the user" "$d"
+
+# 49 a merge with an override marker -> ask, user override (create-side case 26 is silent now).
+H=$(newhome h49); R=$(newrepo r49)
+d=""; rec "$H" "$R" --override || d="--override exited non-zero "
+guard "$H" "$R" "$(bin "$R" 'gh pr merge 3')"; want 49 "$ASK" "user override" "$d"
+
+# 50 one command holding a create and a merge counts as a merge: a pass marker -> ask, no marker -> deny every time.
+guard "$H1" "$W" "$(bin "$W" 'gh pr create --fill && gh pr merge --auto')"; want 50 "$ASK"
+H=$(newhome h50)
+guard "$H" "$W" "$(bin "$W" 'gh pr create --fill && gh pr merge --auto')"; want "50 no marker" deny "pre-PR loop"
+guard "$H" "$W" "$(bin "$W" 'gh pr create --fill && gh pr merge --auto')"; want "50 again" deny "pre-PR loop"
+
+if [ "$passed" -eq "$total" ] && [ "$total" -eq 64 ]; then
   echo "PASS $passed/$total"
 else
   echo "FAIL $passed/$total"; exit 1

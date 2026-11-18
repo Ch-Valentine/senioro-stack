@@ -20,13 +20,13 @@ done
 [ "${#PATHS[@]}" -gt 0 ] || PATHS=(.claude-plugin plugins README.md LICENSE THIRD_PARTY_NOTICES.md .gitignore tests)
 
 PLUGIN=plugins/senioro
-SKILLS="bro check-before-pr decide-step-by-step frame-goal orchestrate preflight resolve-plan-issues resolve-review-findings review-implementation review-spec-plan status technical-writing typescript-best-practices unslop write-prd write-spec"
+SKILLS="babysit-pr bro check-before-pr decide-step-by-step frame-goal orchestrate preflight resolve-plan-issues resolve-review-findings retro review-implementation review-spec-plan status technical-writing typescript-best-practices unslop write-prd write-spec"
 # Model-invocable skills (SPEC #13, #14): disable-model-invocation must be absent; every other skill has it true.
 AUTO_SKILLS="technical-writing typescript-best-practices unslop"
 # Workflow-stage skills checked by the stage gate.
-STAGE_SKILLS="check-before-pr frame-goal preflight review-spec-plan status write-prd write-spec"
+STAGE_SKILLS="babysit-pr check-before-pr frame-goal preflight retro review-spec-plan status write-prd write-spec"
 # Skills that read the wallet (spec 002 #12): each holds exactly one wallet line. orchestrate holds the table too.
-WALLET_SKILLS="orchestrate check-before-pr resolve-review-findings resolve-plan-issues review-spec-plan frame-goal write-prd write-spec preflight status"
+WALLET_SKILLS="orchestrate check-before-pr resolve-review-findings resolve-plan-issues review-spec-plan frame-goal write-prd write-spec preflight status babysit-pr retro"
 # The wallet table lives in this skill's route section (spec 002 #10); it is the only place a model name may sit in prose.
 WALLET_TABLE_SKILL="orchestrate"
 # orchestrate must fit the compaction window (spec 002 F12): at most this many characters.
@@ -43,7 +43,7 @@ LINE14='          command: "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/tl-guard.sh\""'
 ATTRIB="check-before-pr/SKILL.md frame-goal/SKILL.md preflight/SKILL.md
 review-spec-plan/references/lens-architect.md review-spec-plan/references/lens-blast-radius.md
 review-spec-plan/references/lens-root-cause.md review-spec-plan/references/lens-spec-quality.md status/SKILL.md
-write-prd/SKILL.md write-prd/references/prd-template.md write-spec/SKILL.md
+retro/SKILL.md write-prd/SKILL.md write-prd/references/prd-template.md write-spec/SKILL.md
 write-spec/references/hygiene.md write-spec/references/spec-template.md"
 
 # G1: non-strict validate; no errors, only the version warning allowed (F5).
@@ -107,6 +107,8 @@ stage_phrases() {
     review-spec-plan) printf '%s\n' 'Spec review' resolve-plan-issues Status ;;
     status) printf '%s\n' DONE LEFT NEXT ;;
     check-before-pr) printf '%s\n' approval untrusted --record ;;
+    babysit-pr) printf '%s\n' untrusted pr-watch.sh read-only ;;
+    retro) printf '%s\n' 'one at a time' 'Evidence:' 'decide-step-by-step/SKILL.md' Skip ;;
   esac
 }
 
@@ -174,7 +176,7 @@ gate_layout() {
     f="$PLUGIN/agents/$n.md"
     [ "$(sed -n 's/^name: *//p' "$f" 2>/dev/null | head -n1)" = "$n" ] || bad+="$f name != $n; "
   done
-  for f in tl-guard pr-guard token-spend; do [ -f "$PLUGIN/scripts/$f.sh" ] || bad+="scripts/$f.sh missing; "; [ -f "tests/$f.test.sh" ] || bad+="tests/$f.test.sh missing; "; done
+  for f in tl-guard pr-guard pr-watch token-spend; do [ -f "$PLUGIN/scripts/$f.sh" ] || bad+="scripts/$f.sh missing; "; [ -f "tests/$f.test.sh" ] || bad+="tests/$f.test.sh missing; "; done
   for f in "$PLUGIN"/scripts/*.sh; do [ -x "$f" ] || bad+="scripts/${f##*/} not executable; "; done
   [ ! -f "$PLUGIN/hooks/hooks.json" ] || jq -e '.hooks.PreToolUse|length>0' "$PLUGIN/hooks/hooks.json" >/dev/null 2>&1 || bad+="hooks/hooks.json has no PreToolUse hooks; "
   [ "$(sed -n 14p "$PLUGIN/skills/orchestrate/SKILL.md" 2>/dev/null)" = "$LINE14" ] || bad+="orchestrate SKILL.md line 14 differs; "
@@ -195,8 +197,8 @@ gate_layout() {
   done
   # shellcheck disable=SC2016
   hits=$(find "$PLUGIN/agents" "$PLUGIN/skills" -name '*.md' ! -path "$PLUGIN/skills/orchestrate/references/evidence.md" | sort \
-    | xargs perl -ne 'next if $ARGV =~ m#/agents/# && $. <= 10 && /^model: /; next if $ARGV =~ m#/skills/orchestrate/SKILL\.md$# && /^\|/; while (/\b(?:opus|sonnet)\b/gi) { print "$ARGV:$.: $&; " } close ARGV if eof')
-  [ -z "$hits" ] || bad+="opus or sonnet outside the wallet table rows and frontmatter model lines: $hits"
+    | xargs perl -ne 'next if $ARGV =~ m#/agents/# && $. <= 10 && /^model: /; next if $ARGV =~ m#/skills/orchestrate/SKILL\.md$# && /^\|/; next if $ARGV =~ m#/skills/retro/SKILL\.md$# && /\$\{user_config\.wallet\}/; while (/\b(?:opus|sonnet)\b/gi) { print "$ARGV:$.: $&; " } close ARGV if eof')
+  [ -z "$hits" ] || bad+="opus or sonnet outside the wallet table rows, frontmatter model lines and retro's wallet line: $hits"
   [ "$(perl -MEncode -0777 -ne 'print length(decode("UTF-8", $_))' "$f" 2>/dev/null || echo 99999)" -le "$ORCH_MAX_CHARS" ] || bad+="$f is over $ORCH_MAX_CHARS characters; "
   [ "$(perl -MEncode -0777 -ne 'print length(decode("UTF-8", $_))' "$PLUGIN/skills/review-spec-plan/SKILL.md" 2>/dev/null || echo 99999)" -le "$REVIEW_MAX_CHARS" ] || bad+="review-spec-plan SKILL.md is over $REVIEW_MAX_CHARS characters; "
   # Spec review (spec 002 U4): the headings other skills grep, and the After review pointer to the shared flow text.
@@ -225,6 +227,19 @@ gate_layout() {
   grep -qF 'orchestrate/references/retro-template.md' "$f" 2>/dev/null || bad+="$f does not name orchestrate/references/retro-template.md; "
   # The retro seat reads the template, so it names the script by a path that resolves from the template's directory.
   grep -qF '../../../scripts/token-spend.sh' "$e" 2>/dev/null && [ -f "${e%/*}/../../../scripts/token-spend.sh" ] || bad+="retro-template.md does not name a ../../../scripts/token-spend.sh that resolves; "
+  # Retro location (D4): the block goes to the run dir, and no file sends it to a spec dir or the repo.
+  grep -qF 'R/retro.md' "$f" 2>/dev/null || bad+="$f does not put the retro block in R/retro.md; "
+  hits=$(grep -rnE '<spec dir>/retro\.md|docs/work/[^ `]*retro\.md' "$PLUGIN" README.md 2>/dev/null)
+  [ -z "$hits" ] || bad+="retro.md outside the run dir: $hits; "
+  # Session retro (D5): its wallet line keeps the decided map, and its relative paths resolve.
+  e="$PLUGIN/skills/retro/SKILL.md"
+  for n in 'ramen → sonnet;' 'sushi → sonnet, or opus on a heavy session' 'omakase-bro → opus.'; do
+    # shellcheck disable=SC2016
+    grep -F '${user_config.wallet}' "$e" 2>/dev/null | grep -qF -- "$n" || bad+="retro SKILL.md wallet line lacks '$n'; "
+  done
+  for n in ../../scripts/token-spend.sh ../decide-step-by-step/SKILL.md; do
+    grep -qF -- "$n" "$e" 2>/dev/null && [ -f "${e%/*}/$n" ] || bad+="retro SKILL.md does not name a $n that resolves; "
+  done
   jq -e 'has("version")|not' "$PLUGIN/.claude-plugin/plugin.json" >/dev/null || bad+="plugin.json has version; "
   jq -e '.plugins[0]|has("version")|not' .claude-plugin/marketplace.json >/dev/null || bad+="marketplace plugins[0] has version; "
   jq -e '.plugins[0].name=="senioro" and .plugins[0].source=="./plugins/senioro"' .claude-plugin/marketplace.json >/dev/null || bad+="marketplace plugins[0] name/source; "

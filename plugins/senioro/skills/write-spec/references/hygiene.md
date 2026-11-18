@@ -6,7 +6,7 @@ Apply each rule to a spec, PRD or frame, fix every violation in place, then repo
 2. **One place per fact.** Decisions live only in the Decisions table; other sections cite `#N`. PRD content is linked, not restated.
 3. **No dead references.** Every path, anchor, `#N` and section reference resolves. Renames propagate everywhere.
 4. **No tool names.** No skill, agent tool or slash-command names: say what happens, not which tool does it. Roles (implementer, reviewer) are allowed.
-5. **Compress.** Tables for decisions and branching; rules in 1–2 sentences; at most one status line of history. Cut before polishing, and delete a reference that adds nothing new rather than leaving a stub. A spec over 40 KB is a should_fix finding, a quality signal and not a cap: trim history, or split by independent unit groups into numbered specs.
+5. **Compress.** Tables for decisions and branching; rules in 1–2 sentences; at most one status line of history. Cut before polishing, and delete a reference that adds nothing new rather than leaving a stub. The only size rule: a spec is at most 1,000 lines, and one over it is a must_fix finding. Trim history, or split by independent unit groups into numbered specs.
 6. **No code** beyond contract sketches of ≤ 5 lines.
 7. **Cite or label.** Every claim the user did not state or confirm is cited or labelled INFERRED.
 
