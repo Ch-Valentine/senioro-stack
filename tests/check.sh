@@ -240,6 +240,7 @@ gate_layout() {
   for n in ../../scripts/token-spend.sh ../decide-step-by-step/SKILL.md; do
     grep -qF -- "$n" "$e" 2>/dev/null && [ -f "${e%/*}/$n" ] || bad+="retro SKILL.md does not name a $n that resolves; "
   done
+  grep -qF -- '--usage' "$e" 2>/dev/null && fm argument-hint "$e" | grep -qF usage || bad+="retro SKILL.md lacks --usage or a usage argument-hint; "
   jq -e 'has("version")|not' "$PLUGIN/.claude-plugin/plugin.json" >/dev/null || bad+="plugin.json has version; "
   jq -e '.plugins[0]|has("version")|not' .claude-plugin/marketplace.json >/dev/null || bad+="marketplace plugins[0] has version; "
   jq -e '.plugins[0].name=="senioro" and .plugins[0].source=="./plugins/senioro"' .claude-plugin/marketplace.json >/dev/null || bad+="marketplace plugins[0] name/source; "

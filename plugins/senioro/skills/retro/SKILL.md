@@ -1,9 +1,9 @@
 ---
 name: retro
-description: "Runs a session retrospective: one architect seat mines the session's record for its biggest struggles and writes proposals that remove their causes, then the user settles the proposals one at a time, each with a recommended option. Use when a session was harder than it should have been and the user asks for a retro."
+description: "Runs a session retrospective in two parts: a Usage part with the TL session's estimated spend by where, agent type and model, then one architect seat mines the session's record for its biggest struggles and writes proposals that remove their causes, which the user settles one at a time, each with a recommended option. Use when a session was harder than it should have been and the user asks for a retro, or for this session's usage only."
 disable-model-invocation: true
 user-invocable: true
-argument-hint: "[focus]"
+argument-hint: "[usage | focus]"
 allowed-tools: Agent, AskUserQuestion, Bash, Read, Write, Edit
 ---
 
@@ -11,15 +11,17 @@ allowed-tools: Agent, AskUserQuestion, Bash, Read, Write, Edit
 
 Find what made this session hard and propose changes to its environment (checks, hooks, skills, pointers), so the next session does not hit the same thing. One seat analyses; you ask, then apply what the user accepts. The code the session wrote is not reviewed here, and nothing changes before the user decides.
 
-Model, by wallet ${user_config.wallet} (unset, unknown or still literal text: sushi): ramen → sonnet; sushi → sonnet, or opus on a heavy session (step 1); omakase-bro → opus. This map is the whole rule; look up no table.
+Model, by wallet ${user_config.wallet} (unset, unknown or still literal text: sushi): ramen → sonnet; sushi → sonnet, or opus on a heavy session (step 1); omakase-bro → opus. Under ramen the architect seat also gets `effort: high`, over its pinned xhigh. This map is the whole rule; look up no table.
 
 ## Step 1: Locate
 
 - Run dir `R` = `~/.cache/senioro-tl/runs/${CLAUDE_SESSION_ID}` as an expanded absolute path (seat tools do not expand `~` or `$HOME`); `mkdir -p "$R/reports"`.
 - Transcript `T` = the path printed by `ls -t ~/.claude/projects/*/${CLAUDE_SESSION_ID}.jsonl | head -n 1`. Only this id's transcript is read, so a resumed session's earlier part may be missing. None: say so; the seat then works from `R` and your leads alone.
 - Heavy session: it was compacted, or `ls "$R/reports" | wc -l` prints more than 25.
-- Leads, from your own context with no reads: at most 5 struggle phrases (a user correction, a repeated failure, a long search, a redone or blocked step), each with roughly when it happened. The user's focus is `$ARGUMENTS`; when it is not empty it is the first lead and counts toward the 5.
+- Leads, from your own context with no reads: at most 5 struggle phrases (a user correction, a repeated failure, a long search, a redone or blocked step), each with roughly when it happened. The user's focus is `$ARGUMENTS`, unless it is exactly `usage` once trimmed; any other text, one that starts with "usage" included, is the focus. When the focus is not empty it is the first lead and counts toward the 5.
 - `n` = 1 + the number of `retro-proposals-*.md` files in `R`.
+- Part 1, Usage: run one Bash call with a 600000 ms timeout, `out=$(bash ${CLAUDE_SKILL_DIR}/../../scripts/token-spend.sh --usage "$T") && printf '%s\n' "$out" | tee -a "$R/retro.md"`, which appends the block only on exit 0. Print `Part 1: Usage`, then the block verbatim; the block in `R/retro.md` is the record and your echo a copy. With no `T`, print `Usage: no transcript for this session` and append nothing. When the call fails, print its error and go on without Part 1.
+- Usage only: when `$ARGUMENTS`, trimmed, is exactly `usage`, the retro ends here: no seat, no proposals file, no questions, no Step 4.
 
 ## Step 2: Spawn one architect
 
@@ -36,7 +38,7 @@ RETURN: your template, ≤ 20 lines; UNITS = one line per proposal
 
 ## Step 3: Decide, one at a time
 
-Read `<R>/retro-proposals-<n>.md`. For each proposal, in the file's order:
+Print `Part 2: Proposals`, then read `<R>/retro-proposals-<n>.md`. For each proposal, in the file's order:
 
 1. Print its block as written. If an earlier answer changes its options, say how.
 2. Ask one `AskUserQuestion`: its options, the recommended one first with ` (Recommended)`, each keeping its letter from the file and a one-line trade-off, and `Skip` last.
@@ -58,7 +60,7 @@ Read the cheapest source first, and stop when the struggles are explained:
 
 1. The brief's leads: claims to confirm, not facts.
 2. `R/retro.md` and `R/handoff*.md`, when present. An earlier `R/retro-proposals-*.md`: a proposal in its `## Decisions` table is not proposed again; a file with no `## Decisions` (an aborted retro) decided nothing, so its proposals may return.
-3. `bash <this file's dir>/../../scripts/token-spend.sh "$T"`: spend per group and per model, resumes, cache gaps, unnamed run-dir reads, big reads.
+3. The last `## Usage` block in `R/retro.md` first: spend by where, agent type and model, and the top spenders. Then `bash <this file's dir>/../../scripts/token-spend.sh "$T"`, with a 600000 ms Bash timeout: spend per group and per model, resumes, cache gaps, unnamed run-dir reads, big reads.
 4. `grep -lE 'VERDICT: (PARTIAL|BLOCKED)|ESCALATE|misfire' "$R"/reports/*.md`: open at most 8 of the files it lists.
 5. The transcript, never whole (it runs to megabytes): only through the two queries below. Count query 1's lines first with `| wc -l`, then page it with `| sed -n '1,150p'`, `'151,300p'` and so on. Both also work on a seat's transcript, `<T without .jsonl>/subagents/agent-*.jsonl`, when that seat is the suspect.
 
@@ -78,9 +80,11 @@ An `E` line alone is not a struggle: a check that exits non-zero often just repo
 
 **A struggle** is a moment that cost the user or the budget: a correction or a repeated instruction, a call that failed or was denied more than once, a search that took many calls, redone work, a long wait, or spend out of proportion to its result.
 
+A Usage row or top spender whose spend is large for its result is such a candidate, with `Evidence: retro.md:<line>`, ranked with the others; a model change is only ever one of its options, never a default, with Target `manual` (the wallet setting, or the installed plugin's wallet table), or `repo` only when the repository is the plugin's own source.
+
 **Keep a candidate only when** all three hold; drop one-offs and anything you cannot trace:
 
-- It cites a moment in the record: a time in `T`, or a report `file:line`.
+- It cites a moment in the record: a time in `T`, a report `file:line`, or a `retro.md:<line>`.
 - It would recur in a later session, and the change would alter what that session does.
 - Its target does not already say it. Read the target first: a rule that exists and was not followed needs enforcing, not restating.
 
