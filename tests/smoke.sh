@@ -3,7 +3,7 @@
 # Usage: tests/smoke.sh [hook|wallet|effort|audit] [--installed]
 #   default      loads the plugin in place with --plugin-dir "$REPO/plugins/senioro"
 #   --installed  uses the installed senioro plugin (no --plugin-dir)
-#   hook         runs only the PR-hook probes P1 to P3 (by hand, spec 002 U1, U7) instead of S1 and S2
+#   hook         runs only the PR-hook probes P1 to P4 (by hand, spec 002 U1, U7; design U6) instead of S1 and S2
 #   wallet       runs only W1 and W2 (by hand, spec 002 U3, Done-when 2)
 #   effort       runs only E1 (by hand, spec 002 U3, needs Claude Code 2.1.292 or later)
 #   audit        runs only A1 (by hand, spec 002 U7; run it from a runner seat, so the audit child is nested)
@@ -11,10 +11,13 @@
 # S2 agent: the senioro:runner agent must be spawned and return smoke-42, which only it computes.
 # P1 hook loaded: under bypassPermissions, `gh pr create` (a stub gh) on a tree with no pre-PR marker must be
 #    denied by pr-guard.sh, which proves hooks/hooks.json loads by convention (F21).
-# P2 ask: with an override marker the hook answers "ask"; the stub gh must not run, else set ASK=deny in
-#    scripts/pr-guard.sh (F21).
-# P3 docs-only: with no marker, a diff with no code against the remote default branch must get "ask" instead of the
-#    deny of P1: the stub gh must not run and the result must not carry the deny text (spec 002 U7, #6 table).
+# P4 retry: a new session retrying `gh pr create` on the same HEAD after P1's deny must run the stub gh: the
+#    reminder fires once per HEAD and never asks (design U6).
+# P2 merge: `gh pr merge 1` on a new code commit with no marker and no reminder must run the stub gh: the hook never
+#    acts on a merge (round 3, R1). The hook never asks.
+# P3 docs-only: with no marker, `gh pr create` on a diff with no code against the remote default branch is silent:
+#    the stub gh must run and the result must not carry the deny text (spec 002 U7, #6 table; design U6).
+# Each probe judges the first gh pr call of its session.
 # W1 wallet: a haiku /senioro:orchestrate session with wallet=ramen is told to spawn a runner, a verifier and an
 #    implementer (no model named); the result's model usage must list haiku and sonnet only. The implementer's
 #    definition is opus, so an omitted or wrong `model` shows as opus.
@@ -56,14 +59,17 @@ done
 U=$(uuidgen | tr '[:upper:]' '[:lower:]')
 [ -n "$U" ] || { echo "FAIL S1: uuidgen gave no id"; exit 1; }
 W=$(mktemp -d) || { echo "FAIL: mktemp -d"; exit 1; }
-TREE=""
+TREES=()
 SESS=()
-# cleanup: the strict marker and run dir of S1, the hook probes' marker, the temp dir, and the transcripts W1 and E1 made.
+# cleanup: the strict marker and run dir of S1, the hook probes' markers and reminders, the temp dir, and the transcripts
+# W1 and E1 made.
 # shellcheck disable=SC2329
 cleanup() {
   local s
   rm -f "$HOME/.cache/senioro-tl/${U:?}.strict"
-  [ -z "$TREE" ] || rm -f "$HOME/.cache/senioro-tl/prepr/$TREE"
+  for s in ${TREES[@]+"${TREES[@]}"}; do
+    rm -f "$HOME/.cache/senioro-tl/prepr/${s:?}" "$HOME/.cache/senioro-tl/prepr/$s.reminded"
+  done
   rm -rf "$HOME/.cache/senioro-tl/runs/${U:?}" "${W:?}"
   for s in ${SESS[@]+"${SESS[@]}"}; do
     rm -rf "${s:?}" "${s%.jsonl}"
@@ -75,15 +81,18 @@ cd "$W" || { echo "FAIL: cd $W"; exit 1; }
 
 rc=0
 
-# hook_probe: one haiku run, in the probe repo, asking for `gh pr create` through Bash under
-# bypassPermissions. Sets HP_OUT (stream) and HP_RES ("<is_error> <text>" of that Bash call's result, if any).
+# hook_probe [command]: one haiku run, in the probe repo, asking for the command (default `gh pr create --title smoke
+# --body smoke`) through Bash under bypassPermissions. Sets HP_OUT (stream) and HP_RES ("<is_error> <text>" of the
+# result of the session's first Bash call running gh pr create or merge, if any).
 hook_probe() {
+  local c=${1:-gh pr create --title smoke --body smoke}
   HP_OUT=$(cd "$W/repo" && PATH="$W/bin:$PATH" claude -p ${PD[@]+"${PD[@]}"} --model haiku --max-turns 4 --permission-mode bypassPermissions --allowed-tools Bash --disallowed-tools Agent Task --output-format stream-json --verbose \
-    -- "Run this exact command once with your Bash tool, then report its output or the reason it did not run: gh pr create --title smoke --body smoke" < /dev/null 2>&1)
+    -- "Run this exact command once with your Bash tool, then report its output or the reason it did not run: $c" < /dev/null 2>&1)
   HP_RES=$(printf '%s\n' "$HP_OUT" | jq -Rrn '[inputs | fromjson? | objects] as $m
-    | ($m[] | select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Bash" and ((.input.command // "") | test("gh pr create"))) | .id) as $id
-    | $m[] | select(.type=="user") | .message.content[]? | select(.type=="tool_result" and .tool_use_id==$id)
-    | ((.is_error // false | tostring) + " " + (.content | if type=="string" then . else (map(.text? // "") | join("\n")) end))' 2>/dev/null)
+    | [($m[] | select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Bash" and ((.input.command // "") | test("gh pr (create|merge)"))) | .id) as $id
+      | $m[] | select(.type=="user") | .message.content[]? | select(.type=="tool_result" and .tool_use_id==$id)
+      | ((.is_error // false | tostring) + " " + (.content | if type=="string" then . else (map(.text? // "") | join("\n")) end))]
+    | .[0] // empty' 2>/dev/null)
 }
 
 if [ "$HOOK" -eq 1 ]; then
@@ -93,7 +102,8 @@ if [ "$HOOK" -eq 1 ]; then
   { cd "$W/repo" && git init -q && printf '%s\n' "$U" > id.txt && git add id.txt \
     && git -c user.name=smoke -c user.email=smoke@example.com commit -q -m smoke; } || { echo "FAIL P1: could not make the probe repo"; exit 1; }
   TREE=$(git -C "$W/repo" rev-parse 'HEAD^{tree}') || { echo "FAIL P1: no HEAD tree"; exit 1; }
-  rm -f "$HOME/.cache/senioro-tl/prepr/$TREE"
+  TREES+=("$TREE")
+  rm -f "$HOME/.cache/senioro-tl/prepr/$TREE" "$HOME/.cache/senioro-tl/prepr/$TREE.reminded"
 
   # P1: no marker for this tree, so the hook must deny; a stub gh that ran means the hook did not load.
   hook_probe
@@ -103,27 +113,39 @@ if [ "$HOOK" -eq 1 ]; then
     *) echo "FAIL P1 hook loaded: no pr-guard deny text in the gh pr create result"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
   esac
 
-  # P2: an override marker makes the hook answer "ask"; the call must still not run under bypassPermissions.
-  if (cd "$W/repo" && bash "$REPO/plugins/senioro/scripts/pr-guard.sh" --override >/dev/null); then
-    hook_probe
+  # P4: P1 left the reminder for this tree, so a retry on the same HEAD must pass silently and run the stub gh.
+  hook_probe
+  case "$HP_RES" in
+    *smoke-gh-ran*) echo "PASS P4 retry: the retry on the same HEAD ran gh pr create" ;;
+    *"pre-PR loop has not passed"*) echo "FAIL P4 retry: the hook denied a second time on the same HEAD"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+    "") echo "FAIL P4 retry: no gh pr create result in the output"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+    *) echo "FAIL P4 retry: the stub gh did not run ($(printf '%s' "$HP_RES" | head -c 120))"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+  esac
+
+  # P2: a merge on a new code commit (no marker, no reminder) must pass the hook silently and run the stub gh.
+  if { cd "$W/repo" && printf '%s\n' "$U" > code.sh && git add code.sh && git -c user.name=smoke -c user.email=smoke@example.com commit -q -m code; }; then
+    T2=$(git -C "$W/repo" rev-parse 'HEAD^{tree}') && TREES+=("$T2")
+    hook_probe "gh pr merge 1"
     case "$HP_RES" in
-      *smoke-gh-ran*) echo "FAIL P2 ask: ask does NOT stop gh pr create under bypassPermissions; set ASK=deny in plugins/senioro/scripts/pr-guard.sh (F21)"; rc=1 ;;
-      "") echo "FAIL P2 ask: no gh pr create result in the output"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
-      *) echo "PASS P2 ask: ask stopped gh pr create under bypassPermissions ($(printf '%s' "$HP_RES" | head -c 120))" ;;
+      *smoke-gh-ran*) echo "PASS P2 merge: the hook stayed silent and gh pr merge ran with no marker" ;;
+      *"pre-PR loop"*) echo "FAIL P2 merge: the hook denied gh pr merge"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+      "") echo "FAIL P2 merge: no gh pr merge result in the output"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+      *) echo "FAIL P2 merge: the stub gh did not run ($(printf '%s' "$HP_RES" | head -c 120))"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
     esac
   else
-    echo "FAIL P2 ask: pr-guard.sh --override failed"; rc=1
+    echo "FAIL P2 merge: could not make the code commit"; rc=1
   fi
 
-  # P3: a docs-only diff against the remote default branch needs no loop, so the hook asks (no marker for this tree).
+  # P3: a docs-only diff against the remote default branch needs no loop, so the hook is silent and the stub gh runs.
   if { cd "$W/repo" && git update-ref refs/remotes/origin/main HEAD && git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main \
       && printf '%s\n' "$U" > notes.md && git add notes.md && git -c user.name=smoke -c user.email=smoke@example.com commit -q -m docs; }; then
+    T3=$(git -C "$W/repo" rev-parse 'HEAD^{tree}') && TREES+=("$T3")
     hook_probe
     case "$HP_RES" in
-      *smoke-gh-ran*) echo "FAIL P3 docs-only: gh pr create ran on a docs-only diff (ask did not stop it, see P2)"; rc=1 ;;
       *"pre-PR loop has not passed"*) echo "FAIL P3 docs-only: the hook denied a docs-only diff"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+      *smoke-gh-ran*) echo "PASS P3 docs-only: the hook stayed silent and gh pr create ran on a docs-only diff" ;;
       "") echo "FAIL P3 docs-only: no gh pr create result in the output"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
-      *) echo "PASS P3 docs-only: the hook asked instead of denying ($(printf '%s' "$HP_RES" | head -c 120))" ;;
+      *) echo "FAIL P3 docs-only: the stub gh did not run ($(printf '%s' "$HP_RES" | head -c 120))"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
     esac
   else
     echo "FAIL P3 docs-only: could not make the docs-only commit"; rc=1
