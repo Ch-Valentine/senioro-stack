@@ -13,8 +13,8 @@
 #    denied by pr-guard.sh, which proves hooks/hooks.json loads by convention (F21).
 # P4 retry: a new session retrying `gh pr create` on the same HEAD after P1's deny must run the stub gh: the
 #    reminder fires once per HEAD and never asks (design U6).
-# P2 ask: `gh pr merge 1` with an override marker makes the hook answer "ask"; the stub gh must not run under
-#    bypassPermissions, else set ASK=deny in scripts/pr-guard.sh (F21). A create never asks.
+# P2 merge: `gh pr merge 1` on a new code commit with no marker and no reminder must run the stub gh: the hook never
+#    acts on a merge (round 3, R1). The hook never asks.
 # P3 docs-only: with no marker, `gh pr create` on a diff with no code against the remote default branch is silent:
 #    the stub gh must run and the result must not carry the deny text (spec 002 U7, #6 table; design U6).
 # Each probe judges the first gh pr call of its session.
@@ -122,16 +122,18 @@ if [ "$HOOK" -eq 1 ]; then
     *) echo "FAIL P4 retry: the stub gh did not run ($(printf '%s' "$HP_RES" | head -c 120))"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
   esac
 
-  # P2: a merge with an override marker makes the hook answer "ask"; the call must still not run under bypassPermissions.
-  if (cd "$W/repo" && bash "$REPO/plugins/senioro/scripts/pr-guard.sh" --override >/dev/null); then
+  # P2: a merge on a new code commit (no marker, no reminder) must pass the hook silently and run the stub gh.
+  if { cd "$W/repo" && printf '%s\n' "$U" > code.sh && git add code.sh && git -c user.name=smoke -c user.email=smoke@example.com commit -q -m code; }; then
+    T2=$(git -C "$W/repo" rev-parse 'HEAD^{tree}') && TREES+=("$T2")
     hook_probe "gh pr merge 1"
     case "$HP_RES" in
-      *smoke-gh-ran*) echo "FAIL P2 ask: ask does NOT stop gh pr merge under bypassPermissions; set ASK=deny in plugins/senioro/scripts/pr-guard.sh (F21)"; rc=1 ;;
-      "") echo "FAIL P2 ask: no gh pr merge result in the output"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
-      *) echo "PASS P2 ask: ask stopped gh pr merge under bypassPermissions ($(printf '%s' "$HP_RES" | head -c 120))" ;;
+      *smoke-gh-ran*) echo "PASS P2 merge: the hook stayed silent and gh pr merge ran with no marker" ;;
+      *"pre-PR loop"*) echo "FAIL P2 merge: the hook denied gh pr merge"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+      "") echo "FAIL P2 merge: no gh pr merge result in the output"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
+      *) echo "FAIL P2 merge: the stub gh did not run ($(printf '%s' "$HP_RES" | head -c 120))"; printf '%s\n' "$HP_OUT" | tail -n 20; rc=1 ;;
     esac
   else
-    echo "FAIL P2 ask: pr-guard.sh --override failed"; rc=1
+    echo "FAIL P2 merge: could not make the code commit"; rc=1
   fi
 
   # P3: a docs-only diff against the remote default branch needs no loop, so the hook is silent and the stub gh runs.

@@ -11,7 +11,7 @@
         ]
       },
       {
-        "matcher": "mcp__.*__(create|merge)_(pull|merge)_request",
+        "matcher": "mcp__.*__create_(pull|merge)_request",
         "hooks": [
           {
             "type": "command",

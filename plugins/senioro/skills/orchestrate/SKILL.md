@@ -112,7 +112,7 @@ Lens files: `${CLAUDE_PLUGIN_ROOT}/skills/review-spec-plan/references/`; the hyg
 ## Ask the user
 
 - Reversible (naming, ordering, wording, spec bookkeeping, cleanup of worktrees and merged branches this session created, nit fixes, test scope, which check, a visible convention): decide, log `Noted: <decision> — <why>` on the board, continue.
-- Always ask (merge, prod, money or billing, legal, secrets, scope, a real trade-off, product behaviour, anything irreversible or outward-facing but a requested PR, a workflow above the agent guideline): batch up to 4 independent questions per `AskUserQuestion` (After review's OPEN DECISIONS: one at a time, must_fix first), 2–4 options each, the recommended one first with ` (Recommended)`, each description its trade-off in one line. Pre-validate options against earlier decisions (a verifier does it when the tree is needed).
+- Always ask (merge, prod, money or billing, legal, secrets, scope, a real trade-off, product behaviour, anything irreversible or outward-facing but a requested PR, a workflow above the agent guideline): batch up to 4 independent questions per `AskUserQuestion` (After review's OPEN DECISIONS: one at a time, must_fix first), 2–4 options each, the recommended one first with ` (Recommended)`, each description its trade-off in one line. Pre-validate options against earlier decisions (a verifier does it when the tree is needed). On a PR request, needs-user items go in the PR body, unasked.
 - After the answer: `Noted: …`, then continue — never ask permission to proceed. "Whatever you think" → the recommended option, said so. Ask when the decision blocks the next step; do the rest first.
 
 ## Verify and close
