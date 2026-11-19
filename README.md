@@ -1,26 +1,68 @@
 # senioro-stack
 
-## What it is
-
 A Claude Code plugin marketplace (`senioro-stack`) that ships one plugin, `senioro`: a Tech Lead mode for Claude Code. In TL mode the main session delegates every read, search, investigation and change to five seat agents with capped reports, keeps progress in its own compact context, routes each task to the cheapest model that cannot get it wrong, auto-decides reversible calls, and batches the user's decisions, up to 4 per ask. A strict-mode guard hook keeps the TL from touching the tree itself. The plugin also ships review and decision skills.
 
-## Install
+## Quick start
 
-From GitHub:
+### Install
 
 ```bash
 claude plugin marketplace add Ch-Valentine/senioro-stack
 claude plugin install senioro@senioro-stack
 ```
 
-Local development:
+You need Claude Code 2.1.271 or later, `bash` and `jq`. See [Prerequisites](#prerequisites) for the full list.
+
+### Pick a wallet
+
+A wallet picks the model each seat agent runs on. It is the plugin's `wallet` option, and it has three values. An unset wallet, or one with an unknown value, runs as `sushi`.
+
+| Wallet | runner | verifier | investigator | implementer | architect | Pick it when |
+|---|---|---|---|---|---|---|
+| `ramen` | haiku | sonnet | sonnet | sonnet | opus, sonnet for a simple design task | You want the cheapest wallet. Only design stays on opus. |
+| `sushi` (default) | haiku | sonnet, opus on a hard task | sonnet, opus on a hard task | sonnet, opus on a hard task | opus | You want sonnet for routine work and opus where a task is hard. |
+| `omakase-bro` | sonnet | opus | opus | opus | opus | You want opus on every seat but the runner, whatever the task. |
+
+To install with a wallet, pass it with `--config`:
 
 ```bash
-claude plugin marketplace add <path-to-clone>
-claude plugin install senioro@senioro-stack
+claude plugin install senioro@senioro-stack --config wallet=ramen
+claude plugin install senioro@senioro-stack --config wallet=sushi
+claude plugin install senioro@senioro-stack --config wallet=omakase-bro
 ```
 
-A plugin from a local-directory marketplace loads in place: edit the files in the clone, then run `/reload-plugins` (or start a new session).
+To change the wallet later, run `claude plugin configure senioro@senioro-stack` from the shell:
+
+```bash
+claude plugin configure senioro@senioro-stack                    # show the current options
+echo '{"wallet":"omakase-bro"}' | claude plugin configure senioro@senioro-stack --values-stdin
+```
+
+After you change the wallet, run `/reload-plugins` or start a new session so the skills pick up the new value. Set the wallet at user scope. Claude Code does not read a value in a project's `.claude/settings.json`. [Wallet details](#wallet-details) lists the hard-task triggers and the extra seats.
+
+### The workflow
+
+Run each stage yourself, or start TL mode with `/senioro:orchestrate <goal>` and the TL runs the same stages through its seats. Most stages end with a `Next:` line that names the next command.
+
+1. Frame the goal with `/senioro:frame-goal <goal>`. It sets a done predicate and a route: micro, spec, or PRD then spec.
+2. On the PRD route, write the product requirements with `/senioro:write-prd <frame-path>`.
+3. Write the technical spec with `/senioro:write-spec <frame-or-prd-path>`.
+4. Review the spec with `/senioro:review-spec-plan <spec>`, then fix a failing stage with `/senioro:resolve-plan-issues <spec>` and review again.
+5. Before a long or unattended build, check that it can start with `/senioro:preflight <spec>`.
+6. Build the change. For a small change, build it directly. For a multi-unit build, run `/senioro:orchestrate`: TL mode runs preflight, then a Workflow. A micro goal skips steps 2 to 5, and its printed frame is the brief.
+7. Review the code with `/senioro:review-implementation <feature>`, then fix the confirmed findings with `/senioro:resolve-review-findings`.
+8. Ask for a PR, or run `/senioro:check-before-pr --pr`. The checks run, then commit, push and `gh pr create` follow.
+9. `/senioro:babysit-pr` starts once the PR opens and fixes valid review comments and failing checks, at most 3 rounds.
+10. Merge the PR yourself. No skill merges without a separate request.
+
+Run `/senioro:status` at any time for what is done, left and next. After a hard session, run `/senioro:retro`.
+
+## Prerequisites
+
+- Claude Code 2.1.271 or later (the wallet picker; tested 2.1.319). Older versions cannot load the plugin.
+- `bash` and `jq`. Without jq the guard fails open.
+- Access to the opus, sonnet and haiku models.
+- The Workflow tool, for pipelines.
 
 ## Update
 
@@ -65,26 +107,16 @@ Agents (spawned as `senioro:<name>`):
 | `senioro:architect` | Design: options, a recommendation, a split into gateable units. | opus | xhigh |
 | `senioro:implementer` | Make exactly the briefed change and run the narrowest checks. | opus | high |
 
-The TL passes a `model` on every spawn, taken from the wallet table below, which overrides the agent's default model. `resolve-plan-issues` and `resolve-review-findings` read the same table for their own subagents. Effort stays pinned per agent, except sushi's no-trigger mechanical spawns, which pass `effort: medium`.
+The TL passes a `model` on every spawn, taken from the wallet table, which overrides the agent's default model. `resolve-plan-issues` and `resolve-review-findings` read the same table for their own subagents. Effort stays pinned per agent, except sushi's no-trigger mechanical spawns, which pass `effort: medium`.
 
-## Wallet
+## Wallet details
 
-The `wallet` option picks the models the seats run on. The table lives once, in `/senioro:orchestrate`; the skills that spawn seats read it from there.
+The wallet table lives once, in `/senioro:orchestrate`; the skills that spawn seats read it from there. The [Pick a wallet](#pick-a-wallet) table gives the main seats. The rest of the rules:
 
-| Wallet | Seats |
-|---|---|
-| `ramen` | Cheapest: runner on haiku, every other seat on sonnet, the architect on opus (sonnet for a simple design task and for a session retro). |
-| `sushi` (default) | Runner on haiku; verifier, investigator and implementer on sonnet, and on opus when a task is security-sensitive, touches shared state or a cross-file contract, is concurrent, changes a public API, or has failed twice; architect, second blind verifier and split adjudicator on opus; a session retro's architect on sonnet, and on opus when the session was compacted or has more than 25 seat reports. |
-| `omakase-bro` | Opus on every seat except the runner, which runs on sonnet. |
-
-Set it at install, `claude plugin install senioro@senioro-stack --config wallet=ramen`, or later with `/plugin configure senioro@senioro-stack`. Set it at user scope: a value in a project's `.claude/settings.json` is not read. An unset wallet, or one with an unknown value, runs as `sushi`. The picker needs Claude Code 2.1.271 or later; older versions cannot load the plugin.
-
-## Prerequisites
-
-- Claude Code 2.1.271 or later (the wallet picker; tested 2.1.319).
-- `bash` and `jq`. Without jq the guard fails open.
-- Access to the opus, sonnet and haiku models.
-- The Workflow tool, for pipelines.
+- `sushi` moves the verifier, investigator and implementer to opus when a task is security-sensitive, touches shared state or a cross-file contract, is concurrent, changes a public API, or has failed twice.
+- The second blind verifier and the split adjudicator run on sonnet in `ramen` and on opus in `sushi` and `omakase-bro`.
+- A session retro's architect runs on sonnet in `ramen` and on opus in `omakase-bro`. In `sushi` it runs on sonnet, and on opus when the session was compacted or has more than 25 seat reports.
+- The picker needs Claude Code 2.1.271 or later; older versions cannot load the plugin.
 
 ## TL mode
 
@@ -143,6 +175,15 @@ rm -rf ~/.cache/senioro-tl   # optional: deletes the TL run dirs and markers
 ```
 
 ## Development
+
+Install from a local clone:
+
+```bash
+claude plugin marketplace add <path-to-clone>
+claude plugin install senioro@senioro-stack
+```
+
+A plugin from a local-directory marketplace loads in place: edit the files in the clone, then run `/reload-plugins` (or start a new session).
 
 - `tests/check.sh [validate|guard|grep|lint|layout ...] [-- <path> ...]` runs the deterministic gates (all of them when none is named). It needs bash, jq, perl and claude; shellcheck is optional.
 - `plugins/senioro/scripts/token-spend.sh <session.jsonl> [--until <ISO-8601 UTC>] [--split <ISO-8601 UTC> | --phase spec|build]` prints a session's token spend per group (TL, seats, workflow agents) and per model, the seat count by model, and its waste metrics (resumes, cache gaps, docs fetches, unnamed run-dir reads, big TL reads) from the transcripts; with `--split` or `--phase` it prints only the three retro lines (spec, build, seats). `tests/token-spend.test.sh` pins it on two fixture sessions. It needs bash and jq.
