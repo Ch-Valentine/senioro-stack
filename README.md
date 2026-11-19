@@ -19,7 +19,7 @@ A wallet picks the model each seat agent runs on. It is the plugin's `wallet` op
 
 | Wallet | runner | verifier | investigator | implementer | architect | Pick it when |
 |---|---|---|---|---|---|---|
-| `ramen` | haiku | sonnet | sonnet | sonnet | opus, sonnet for a simple design task | You want the cheapest wallet. Only design stays on opus. |
+| `ramen` | haiku | sonnet | sonnet | sonnet | opus, sonnet for a simple design task; effort high | You want the cheapest wallet. Only design stays on opus, at effort high instead of xhigh. |
 | `sushi` (default) | haiku | sonnet, opus on a hard task | sonnet, opus on a hard task | sonnet, opus on a hard task | opus | You want sonnet for routine work and opus where a task is hard. |
 | `omakase-bro` | sonnet | opus | opus | opus | opus | You want opus on every seat but the runner, whatever the task. |
 
@@ -91,7 +91,7 @@ Skills (three are model-invocable: Claude loads `technical-writing`, `typescript
 | `/senioro:resolve-review-findings` | Challenge a code review's findings, confirm the real ones, apply and verify the fixes. | No |
 | `/senioro:resolve-plan-issues` | Resolve a plan's open issues: auto-fix trivial ones, walk through complex ones. | No |
 | `/senioro:decide-step-by-step` | Resolve a plan's open decisions one by one, with a recommendation each. | No |
-| `/senioro:retro` | Session retro: one architect seat finds the session's biggest struggles in its record and proposes changes that remove their causes; you settle them one at a time. | No |
+| `/senioro:retro` | Session retro in two parts. Part 1, Usage: the TL session's estimated spend by where (TL, seats, workflow agents), agent type and model, and its top spenders. Part 2: one architect seat finds the session's biggest struggles in its record and proposes changes that remove their causes; you settle them one at a time. `/senioro:retro usage` prints Part 1 only. | No |
 | `/senioro:bro` | Restate the last message in plain language, with no jargon. | No |
 | `/senioro:unslop` | Cut AI tells from any writing. | Yes |
 | `/senioro:technical-writing` | Layered technical-writing standard for docs, RFCs, READMEs, PR descriptions and commit messages. | Yes |
@@ -107,7 +107,7 @@ Agents (spawned as `senioro:<name>`):
 | `senioro:architect` | Design: options, a recommendation, a split into gateable units. | opus | xhigh |
 | `senioro:implementer` | Make exactly the briefed change and run the narrowest checks. | opus | high |
 
-The TL passes a `model` on every spawn, taken from the wallet table, which overrides the agent's default model. `resolve-plan-issues` and `resolve-review-findings` read the same table for their own subagents. Effort stays pinned per agent, except sushi's no-trigger mechanical spawns, which pass `effort: medium`.
+The TL passes a `model` on every spawn, taken from the wallet table, which overrides the agent's default model. `resolve-plan-issues` and `resolve-review-findings` read the same table for their own subagents. Effort stays pinned per agent, except sushi's no-trigger mechanical spawns, which pass `effort: medium`, and every architect spawn on `ramen`, which passes `effort: high` over the architect's pinned xhigh.
 
 ## Wallet details
 
@@ -116,6 +116,7 @@ The wallet table lives once, in `/senioro:orchestrate`; the skills that spawn se
 - `sushi` moves the verifier, investigator and implementer to opus when a task is security-sensitive, touches shared state or a cross-file contract, is concurrent, changes a public API, or has failed twice.
 - The second blind verifier and the split adjudicator run on sonnet in `ramen` and on opus in `sushi` and `omakase-bro`.
 - A session retro's architect runs on sonnet in `ramen` and on opus in `omakase-bro`. In `sushi` it runs on sonnet, and on opus when the session was compacted or has more than 25 seat reports.
+- On `ramen` the TL passes `effort: high` on every architect spawn, a session retro's included, so the architect runs at high, not xhigh. `sushi` and `omakase-bro` keep xhigh.
 - The picker needs Claude Code 2.1.271 or later; older versions cannot load the plugin.
 
 ## TL mode
@@ -131,7 +132,7 @@ The wallet table lives once, in `/senioro:orchestrate`; the skills that spawn se
 - Recommended (INFERRED, not tested live): on a GitHub install, also add the plugin cache dir `~/.claude/plugins/cache/senioro-stack` to the same additional directories setting, so that seats can read the review rubrics by path without a permission prompt. Add the parent dir: the versioned dir below it changes on every update.
 - `/effort` changes are saved as that model's default.
 - Seats never see memory. Point a seat at a memory file in its brief if it matters.
-- Retro: at a spec or phase close in a session with a spec dir, one implementer appends a block of at most 10 lines to `retro.md` in the run dir, never in the repo and never rewriting old blocks: time on spec versus build, tokens and API-equivalent dollars, the seat count by model and up to three struggles. The layout is `plugins/senioro/skills/orchestrate/references/retro-template.md`; the figures come from `token-spend.sh --split` or `--phase`. `/senioro:retro` reads it and writes its proposals beside it, as `retro-proposals-<n>.md`. Both go when the run dir is pruned.
+- Retro: at a spec or phase close in a session with a spec dir, one implementer appends a block of at most 10 lines to `retro.md` in the run dir, never in the repo and never rewriting old blocks: time on spec versus build, tokens and API-equivalent dollars, the seat count by model and up to three struggles. The layout is `plugins/senioro/skills/orchestrate/references/retro-template.md`; the figures come from `token-spend.sh --split` or `--phase`. `/senioro:retro` appends one `## Usage` block per run to the same `retro.md` (from `token-spend.sh --usage`), reads the file and writes its proposals beside it, as `retro-proposals-<n>.md`. Both go when the run dir is pruned.
 - The tl-guard is a guardrail that keeps the TL disciplined, not a security boundary: it allows any Bash command whose text contains an allowed path. It matches only the command's first word (after one leading `cd`) against a fixed list of file readers, so absolute paths such as `/bin/cat` and chained `cd`s are not caught.
 
 ## Pre-PR checks
@@ -186,7 +187,7 @@ claude plugin install senioro@senioro-stack
 A plugin from a local-directory marketplace loads in place: edit the files in the clone, then run `/reload-plugins` (or start a new session).
 
 - `tests/check.sh [validate|guard|grep|lint|layout ...] [-- <path> ...]` runs the deterministic gates (all of them when none is named). It needs bash, jq, perl and claude; shellcheck is optional.
-- `plugins/senioro/scripts/token-spend.sh <session.jsonl> [--until <ISO-8601 UTC>] [--split <ISO-8601 UTC> | --phase spec|build]` prints a session's token spend per group (TL, seats, workflow agents) and per model, the seat count by model, and its waste metrics (resumes, cache gaps, docs fetches, unnamed run-dir reads, big TL reads) from the transcripts; with `--split` or `--phase` it prints only the three retro lines (spec, build, seats). `tests/token-spend.test.sh` pins it on two fixture sessions. It needs bash and jq.
+- `plugins/senioro/scripts/token-spend.sh <session.jsonl> [--until <ISO-8601 UTC>] [--split <ISO-8601 UTC> | --phase spec|build | --usage]` prints a session's token spend per group (TL, seats, workflow agents) and per model family (opus, sonnet, haiku, and `model other` for the rest, so the model lines add up to the group lines), the seat count by model, and its waste metrics (resumes, cache gaps, docs fetches, unnamed run-dir reads, big TL reads) from the transcripts; with `--split` or `--phase` it prints only the three retro lines (spec, build, seats), and with `--usage` only the retro's Usage block. Dollars are estimates at API list prices, from a per-model table in the script. `tests/token-spend.test.sh` pins it on three fixture sessions and on sessions it builds. It needs bash and jq.
 - `tests/smoke.sh` runs the model smoke tests (hook and agent) against the plugin in this clone. `tests/smoke.sh wallet` checks that a haiku session on `wallet=ramen` spawns a runner, a verifier and an implementer and uses only haiku and sonnet; `tests/smoke.sh effort` probes the per-spawn `effort` parameter (Claude Code 2.1.292 or later). `tests/smoke.sh hook` also checks that a PR create is denied once per HEAD and passes on the retry, that a docs-only diff passes with no deny, and that a merge on an unchecked code commit passes the hook silently. `tests/smoke.sh audit` runs the prompt audit on a throwaway plugin repo with one planted dated pattern (a nested `claude -p` on `$AUDIT_MODEL`, default sonnet).
 - `tests/smoke.sh` spends model tokens (haiku), and its hook test runs the real `/senioro:orchestrate`, which creates `~/.cache/senioro-tl/` (strict marker, run dirs) and prunes old markers and run dirs there.
 - CI (`.github/workflows/check.yml`) runs `tests/check.sh` and `tests/tl-guard.test.sh` on every push to `main` and on pull requests; it uses no API key, so `tests/smoke.sh` stays manual.

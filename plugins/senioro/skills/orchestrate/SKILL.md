@@ -23,26 +23,26 @@ Precedence: a repo's own build protocol (a build-orchestration skill, a phases R
 ## Step 0 — Arm
 
 - Goal = `$ARGUMENTS` minus flags; if empty, ask for it.
-- Run dir `R` = `~/.cache/senioro-tl/runs/${CLAUDE_SESSION_ID}/`; write it as an absolute path in briefs. Shared context files, seat reports (`R/reports/`), and workflow scripts live there.
+- Run dir `R` = `~/.cache/senioro-tl/runs/${CLAUDE_SESSION_ID}/`; write it as an absolute path in briefs. Context files, seat reports (`R/reports/`) and workflow scripts live there.
 - Strict mode is the default: the guard hook denies you Read/Edit/Write/Grep/Glob and Bash file readers everywhere except `~/.cache/senioro-tl/`, memory dirs, and the scratchpad. Arm it and prune old runs:
   ```bash
   d=~/.cache/senioro-tl; mkdir -p "$d/runs/${CLAUDE_SESSION_ID}/reports" && touch "$d/${CLAUDE_SESSION_ID}.strict" && find "$d" -maxdepth 1 -name '*.strict' -mtime +1 -delete && find "$d/runs" -mindepth 1 -maxdepth 1 -mtime +7 -exec rm -rf {} +
   ```
   `--soft` skips the marker: same rules, unenforced. Leave strict mode only on the user's request (delete the marker). A seat reporting "tl-guard misfire" → tell the user, fall back to soft.
-- Tell the user briefly what you will delegate and what you will ask. Effort is the user's call (`/effort`); a change is saved as that model's default.
+- Tell the user briefly what you will delegate and ask. Effort is the user's call (`/effort`); a change is saved as that model's default.
 - Orient with ONE scout (runner to locate files and list the check/gate commands; investigator when orientation needs judgement): a short map of files and commands. One verifier checks the scout's load-bearing facts as a batch before you plan on them.
 
 ## Progress lives in your context
 
 - No ledger, no plan file, no working copy of any artifact.
-- Confirm each decision in one line: `Noted: #N = B — why`. At a unit or phase close, print a short board: done (how verified), in flight, left, next, open decisions.
-- Durable state is written by seats into the real artifacts: git, the one spec or plan (its Decisions table or checkboxes). Memory holds cross-session facts only, never progress or resume state (that is `R/`).
+- Confirm each decision in one line: `Noted: #N = B — why`. At a unit/phase close, print a short board: done (how verified), in flight, left, next, open decisions.
+- Seats write durable state into the real artifacts: git, the one spec or plan (its Decisions table or checkboxes). Memory holds cross-session facts only, never progress or resume state (`R/`).
 - After a compaction, a runner rebuilds status from `R/handoff.md` (if any), git, the artifact, and the `R/reports/` listing, and re-reads `gh pr list` before any PR-status claim; a fresh session starts from the handoff, git, and the artifact.
-- At a spec or phase close, start nothing new. With a spec dir, one implementer (Retro block row) appends a block to `R/retro.md` by `${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/references/retro-template.md`, never rewriting old ones; the brief gives the session id, `--split <ts>` (the time noted at the Status write) or `--phase spec|build`, the wallet and ≤ 3 struggle phrases. Then write `R/handoff.md` once (≤ 20 lines of pointers, never re-edited) and end the turn with `COMPACT NOW: handoff in <path>`.
+- At a spec or phase close, start nothing new. With a spec dir, one implementer (Retro block row) appends a block to `R/retro.md` by `${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/references/retro-template.md`, never rewriting old ones; the brief gives the session id, `--split <ts>` (the Status write's time) or `--phase spec|build`, the wallet and ≤ 3 struggle phrases. Then write `R/handoff.md` once (≤ 20 lines of pointers, never re-edited) and end the turn with `COMPACT NOW: handoff in <path>`.
 
 ## Route the seat
 
-Wallet: ${user_config.wallet}. Every spawn takes its model from the table column named by the wallet; unset (the text stays literal), unknown or anything else uses the sushi column. Pass `model` on every spawn and open every brief with its `MODEL:` line.
+Wallet: ${user_config.wallet}. Every spawn takes its model from the table column named by the wallet; unset (text stays literal), unknown or anything else uses the sushi column. Pass `model` on every spawn and open every brief with its `MODEL:` line.
 
 | Task | Seat | ramen | sushi | omakase-bro |
 |---|---|---|---|---|
@@ -57,9 +57,10 @@ Wallet: ${user_config.wallet}. Every spawn takes its model from the table column
 | Ladder cap | — | sonnet; architect opus | opus | opus |
 
 - Simple design task: revising to recorded decisions, no new design choice, micro scale.
-- Sushi only: a no-trigger mechanical spawn (an exact-spec edit, a Status or retro write) also passes `effort: medium`, the model default; every other spawn keeps its seat's pinned effort.
+- Ramen only: every architect spawn passes `effort: high` (Agent `effort`, Workflow `agent()` `effort`), over its pinned xhigh.
+- Sushi only: a no-trigger mechanical spawn (an exact-spec edit, a Status or retro write) also passes `effort: medium`. Every other spawn keeps its pinned effort.
 - Triggers, judged from the brief, never by reading code: T1 security-sensitive code (auth, permissions, input handling); T2 shared state or a contract across files; T3 concurrency, async or lifecycle logic; T4 a public API or type-contract change; T5 a second failed attempt (Escalation). The retro row has no trigger.
-- Never use built-in `Plan`, `general-purpose`, or `Explore` for work.
+- Never use built-in `Plan`, `general-purpose` or `Explore` for work.
 - Batch by shared reads: one seat per file cluster (seats share no cache). At most 4 seats in flight; never two implementers on the same files.
 - Escalation: a hedged, PARTIAL, or BLOCKED report on a clear brief is a miss. Miss 1: resend via `SendMessage` naming the gap; a follow-up (a resend, or answers to a seat's open decisions) resumes a seat only straight after its report, with no user question or other seat's run between; else a fresh seat of the same type gets the brief, the follow-up and the old report's path. Miss 2 (T5), or a runner's ESCALATE: a fresh seat with a fresh brief, one tier up, capped by the ladder-cap row. At the cap, or on miss 3: ask the user. A seat's question is answered from your context or becomes a user question. Never take the task yourself.
 
