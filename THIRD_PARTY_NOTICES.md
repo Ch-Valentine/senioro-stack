@@ -80,13 +80,13 @@ SOFTWARE.
 
 ## mattpocock/skills (Matt Pocock)
 
-Parts of the workflow-stage skills in `plugins/senioro/skills/` are adapted from the mattpocock/skills repository.
+The `tdd` skill in `plugins/senioro/skills/` is ported from the mattpocock/skills repository, and parts of the workflow-stage skills are adapted from it.
 
 - Source: https://github.com/mattpocock/skills/tree/d81f3a183412e71a5b1e84ca21bc1a35eea03a60
 - Pinned commit: `d81f3a183412e71a5b1e84ca21bc1a35eea03a60`
 - License: MIT (`LICENSE`, reproduced below)
 
-Adapted files (source path in the repository → path under `plugins/senioro/skills/`):
+Ported and adapted files (source path in the repository → path under `plugins/senioro/skills/`):
 
 - `skills/productivity/grilling/SKILL.md` → `frame-goal/SKILL.md`, modified: the design tree, the decision frontier, a recommended answer per question, facts gathered through a subagent, and "done when the frontier is empty"; asks one question at a time instead of the whole frontier per round.
 - `docs/engineering/to-spec.md` → `frame-goal/SKILL.md`, `write-prd/SKILL.md`, modified: the triage became frame-goal's route table; "anything the spec asserts that you never said is a defect" became write-prd's closing check.
@@ -96,8 +96,14 @@ Adapted files (source path in the repository → path under `plugins/senioro/ski
 - `skills/engineering/codebase-design/SKILL.md` → `review-spec-plan/references/lens-architect.md`, modified: the deletion test and "one adapter means a hypothetical seam" became the architect lens's seam checks.
 - `skills/productivity/handoff/SKILL.md` → `write-spec/references/hygiene.md`, modified: "reference artifacts, never duplicate them" became the one-copy rule; the part that names skills inside the artifact is dropped.
 - `skills/engineering/retro/SKILL.md`, `docs/engineering/retro.md` → `retro/SKILL.md`, modified: improving the environment and not the code, a deterministic check for a mechanical mistake and prose only for judgement calls, every candidate traced to a moment in the session, the most severe first, proposing only; the seven categories and `CODING_STANDARDS.md` are dropped.
+- `skills/engineering/tdd/SKILL.md`, `skills/engineering/tdd/tests.md` and `skills/engineering/tdd/mocking.md`, all at commit `abeeaf95660ba9e8b7c753eb38f441ca707a8823` (the pinned commit holds an older `SKILL.md` without the note on what each proposed seam catches and misses) → `tdd/SKILL.md`, `tdd/references/tests.md`, `tdd/references/mocking.md`. `tests.md` and `mocking.md` are moved under `references/`, unmodified. `SKILL.md` is modified:
+  - rewrote the description as "Applies test-driven development: ... Use when ...", keeping the trigger phrases (test-first, "red-green-refactor", integration tests);
+  - pointed the links to `tests.md` and `mocking.md` at `references/`;
+  - the seams under test come from the spec's agreed test seams first; with none agreed, they are confirmed with the user, and a seat, which cannot ask the user, stops with `VERDICT: BLOCKED` and one question that names the proposed seams; "Ask:" became "When you propose seams, ask:";
+  - replaced the Skill-tool call to `codebase-design` (not ported as a skill) with a pointer to the seam checks in `review-spec-plan/references/lens-architect.md`, and dropped the sentence that names `codebase-design` as the source of the design vocabulary;
+  - changed the reference to the `code-review` skill to `/senioro:review-implementation`.
 
-Not ported: the `pr` skill, which embeds HumanLayer text.
+Not ported: the `pr` skill, which embeds HumanLayer text, and the tdd skill's `agents/openai.yaml`.
 
 ```
 MIT License

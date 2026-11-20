@@ -20,9 +20,9 @@ done
 [ "${#PATHS[@]}" -gt 0 ] || PATHS=(.claude-plugin plugins README.md LICENSE THIRD_PARTY_NOTICES.md .gitignore tests)
 
 PLUGIN=plugins/senioro
-SKILLS="babysit-pr bro check-before-pr decide-step-by-step frame-goal orchestrate preflight resolve-plan-issues resolve-review-findings retro review-implementation review-spec-plan status technical-writing typescript-best-practices unslop write-prd write-spec"
+SKILLS="babysit-pr bro check-before-pr decide-step-by-step frame-goal orchestrate preflight resolve-plan-issues resolve-review-findings retro review-implementation review-spec-plan status tdd technical-writing typescript-best-practices unslop write-prd write-spec"
 # Model-invocable skills (SPEC #13, #14): disable-model-invocation must be absent; every other skill has it true.
-AUTO_SKILLS="technical-writing typescript-best-practices unslop"
+AUTO_SKILLS="tdd technical-writing typescript-best-practices unslop"
 # Workflow-stage skills checked by the stage gate.
 STAGE_SKILLS="babysit-pr check-before-pr frame-goal preflight retro review-spec-plan status write-prd write-spec"
 # Skills that read the wallet (spec 002 #12): each holds exactly one wallet line. orchestrate holds the table too.
@@ -43,8 +43,8 @@ LINE14='          command: "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/tl-guard.sh\""'
 ATTRIB="check-before-pr/SKILL.md frame-goal/SKILL.md preflight/SKILL.md
 review-spec-plan/references/lens-architect.md review-spec-plan/references/lens-blast-radius.md
 review-spec-plan/references/lens-root-cause.md review-spec-plan/references/lens-spec-quality.md status/SKILL.md
-retro/SKILL.md write-prd/SKILL.md write-prd/references/prd-template.md write-spec/SKILL.md
-write-spec/references/hygiene.md write-spec/references/spec-template.md"
+retro/SKILL.md tdd/SKILL.md tdd/references/mocking.md tdd/references/tests.md write-prd/SKILL.md
+write-prd/references/prd-template.md write-spec/SKILL.md write-spec/references/hygiene.md write-spec/references/spec-template.md"
 
 # G1: non-strict validate; no errors, only the version warning allowed (F5).
 gate_validate() {
