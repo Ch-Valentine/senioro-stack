@@ -19,11 +19,11 @@ See [tests.md](references/tests.md) for examples and [mocking.md](references/moc
 
 A **seam** is the public boundary you test at: the interface where you observe behavior without reaching inside. Tests live at seams, never against internals.
 
-**Test only at pre-agreed seams.** Before writing any test, take the seams under test from the spec's agreed test seams, when a spec has them. If none are agreed, write down the seams under test and confirm them with the user; in a seat, which cannot ask the user, stop with `VERDICT: BLOCKED` and one question that names the proposed seams. No test is written at an unconfirmed seam. You can't test everything, so agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
+**Test only at pre-agreed seams.** Before writing any test, take the seams under test from the spec's agreed test seams or the seams the brief names, which count as agreed. If neither names any, write down the seams under test and confirm them with the user; in a seat, which cannot ask the user, stop with `VERDICT: BLOCKED` and one question that names the proposed seams. No test is written at an unconfirmed seam. You can't test everything, so agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
 
 When you propose seams, ask: "What's the public interface, and which seams should we test?" Give each proposed seam a one-line note on what it catches and what it misses.
 
-When the shape of that interface is itself in question (how deep the module is, where the seam belongs, what the interface should expose), read `../review-spec-plan/references/lens-architect.md` (relative to this file) and apply its seam checks. It is a reference to consult, not a session to run.
+When the shape of that interface is itself in question (how deep the module is, where the seam belongs, what the interface should expose), read `../review-spec-plan/references/lens-architect.md` (relative to this file) and apply its Shallow module check (depth) and its Seams checks. It is a reference to consult, not a session to run.
 
 ## Anti-patterns
 

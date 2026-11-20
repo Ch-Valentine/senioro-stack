@@ -99,8 +99,8 @@ Ported and adapted files (source path in the repository → path under `plugins/
 - `skills/engineering/tdd/SKILL.md`, `skills/engineering/tdd/tests.md` and `skills/engineering/tdd/mocking.md`, all at commit `abeeaf95660ba9e8b7c753eb38f441ca707a8823` (the pinned commit holds an older `SKILL.md` without the note on what each proposed seam catches and misses) → `tdd/SKILL.md`, `tdd/references/tests.md`, `tdd/references/mocking.md`. `tests.md` and `mocking.md` are moved under `references/`, unmodified. `SKILL.md` is modified:
   - rewrote the description as "Applies test-driven development: ... Use when ...", keeping the trigger phrases (test-first, "red-green-refactor", integration tests);
   - pointed the links to `tests.md` and `mocking.md` at `references/`;
-  - the seams under test come from the spec's agreed test seams first; with none agreed, they are confirmed with the user, and a seat, which cannot ask the user, stops with `VERDICT: BLOCKED` and one question that names the proposed seams; "Ask:" became "When you propose seams, ask:";
-  - replaced the Skill-tool call to `codebase-design` (not ported as a skill) with a pointer to the seam checks in `review-spec-plan/references/lens-architect.md`, and dropped the sentence that names `codebase-design` as the source of the design vocabulary;
+  - the seams under test come from the spec's agreed test seams or the seams the brief names; with neither, they are confirmed with the user, and a seat, which cannot ask the user, stops with `VERDICT: BLOCKED` and one question that names the proposed seams; "Ask:" became "When you propose seams, ask:";
+  - replaced the Skill-tool call to `codebase-design` (not ported as a skill) with a pointer to the Shallow module and Seams checks in `review-spec-plan/references/lens-architect.md`, and dropped the sentence that names `codebase-design` as the source of the design vocabulary;
   - changed the reference to the `code-review` skill to `/senioro:review-implementation`.
 
 Not ported: the `pr` skill, which embeds HumanLayer text, and the tdd skill's `agents/openai.yaml`.
