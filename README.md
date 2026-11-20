@@ -74,7 +74,7 @@ Updates are manual. Auto-update is off by default for third-party marketplaces, 
 
 ## Components
 
-Skills (three are model-invocable: Claude loads `technical-writing`, `typescript-best-practices` and `unslop` on its own when they apply; you invoke every other one yourself):
+Skills (four are model-invocable: Claude loads `tdd`, `technical-writing`, `typescript-best-practices` and `unslop` on its own when they apply; you invoke every other one yourself):
 
 | Skill | Purpose | Model-invocable |
 |---|---|---|
@@ -96,6 +96,7 @@ Skills (three are model-invocable: Claude loads `technical-writing`, `typescript
 | `/senioro:unslop` | Cut AI tells from any writing. | Yes |
 | `/senioro:technical-writing` | Layered technical-writing standard for docs, RFCs, READMEs, PR descriptions and commit messages. | Yes |
 | `/senioro:typescript-best-practices` | TypeScript type-safety rules, loaded when working with `.ts` and `.tsx` files. | Yes |
+| `/senioro:tdd` | Test-driven development: red before green, tests only at agreed seams, the anti-patterns (implementation-coupled, tautological, horizontal slicing), and mocks only at system boundaries. | Yes |
 
 Agents (spawned as `senioro:<name>`):
 
@@ -197,4 +198,4 @@ A plugin from a local-directory marketplace loads in place: edit the files in th
 
 MIT. See [LICENSE](LICENSE).
 
-The `bro`, `unslop`, `technical-writing` and `typescript-best-practices` skills are ported from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The `bro`, `unslop`, `technical-writing` and `typescript-best-practices` skills are ported from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan (MIT). The `tdd` skill is ported from [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
